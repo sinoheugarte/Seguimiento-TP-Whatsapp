@@ -1,0 +1,54 @@
+{
+  "whatsapp": {
+    "grupos": [
+      {
+        "id": "grupo-ventas",
+        "nombre": "Equipo Ventas",
+        "chatId": "120363XXXXXXXXXX@g.us"
+      },
+      {
+        "id": "grupo-operaciones",
+        "nombre": "Operaciones",
+        "chatId": "120363YYYYYYYYYY@g.us"
+      }
+    ]
+  },
+  "email": {
+    "destinatarios": [
+      {
+        "id": "gerencia",
+        "nombre": "Gerencia",
+        "direcciones": ["gerente@empresa.com", "subgerente@empresa.com"]
+      },
+      {
+        "id": "ventas",
+        "nombre": "Equipo Ventas",
+        "direcciones": ["ventas@empresa.com"]
+      }
+    ]
+  },
+  "programaciones": [
+    {
+      "id": "reporte-lunes",
+      "activo": true,
+      "cron": "0 9 * * 1",
+      "descripcion": "Reporte semanal cada lunes a las 9am",
+      "mensaje": "Buenos dias! Aqui el reporte semanal de seguimiento.",
+      "foto": "reporte-semanal.jpg",
+      "destinatariosWhatsapp": ["grupo-ventas", "grupo-operaciones"],
+      "destinatariosEmail": ["gerencia"],
+      "asuntoEmail": "Reporte Semanal - {{fecha}}"
+    },
+    {
+      "id": "recordatorio-diario",
+      "activo": false,
+      "cron": "0 8 * * 1-5",
+      "descripcion": "Recordatorio diario de lunes a viernes a las 8am",
+      "mensaje": "Buen dia equipo! Recordatorio de actividades del dia.",
+      "foto": null,
+      "destinatariosWhatsapp": ["grupo-ventas"],
+      "destinatariosEmail": [],
+      "asuntoEmail": ""
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+node_modules/
+.wwebjs_auth/
+.env
+media/*.jpg
+media/*.png
+media/*.jpeg
+media/*.gif
+media/*.webp
+*.log

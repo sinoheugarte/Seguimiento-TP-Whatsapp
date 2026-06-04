@@ -1,0 +1,50 @@
+const nodemailer = require('nodemailer');
+const path = require('path');
+const fs = require('fs');
+
+let transporter = null;
+
+function inicializar() {
+  transporter = nodemailer.createTransport({
+    host: 'smtp.office365.com',
+    port: 587,
+    secure: false, // STARTTLS
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
+    },
+    tls: {
+      ciphers: 'SSLv3'
+    }
+  });
+
+  return transporter.verify().then(() => {
+    console.log('✓ Correo Outlook 365 conectado correctamente');
+  });
+}
+
+async function enviarCorreo({ para, asunto, cuerpo, rutaFoto = null }) {
+  if (!transporter) throw new Error('Correo no inicializado');
+
+  const adjuntos = [];
+  if (rutaFoto) {
+    const rutaCompleta = path.resolve('media', rutaFoto);
+    if (fs.existsSync(rutaCompleta)) {
+      adjuntos.push({ path: rutaCompleta, filename: path.basename(rutaCompleta) });
+    }
+  }
+
+  const opciones = {
+    from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+    to: Array.isArray(para) ? para.join(', ') : para,
+    subject: asunto,
+    html: `<div style="font-family:Arial,sans-serif;font-size:14px">${cuerpo.replace(/\n/g, '<br>')}</div>`,
+    text: cuerpo,
+    attachments: adjuntos
+  };
+
+  const info = await transporter.sendMail(opciones);
+  return info.messageId;
+}
+
+module.exports = { inicializar, enviarCorreo };

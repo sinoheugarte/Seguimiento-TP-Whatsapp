@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Seguimiento TP — Panel de Mensajes</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; color: #222; }
+    header { background: #075e54; color: #fff; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+    header h1 { font-size: 1.2rem; font-weight: 600; }
+    .badge { padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+    .badge.ok { background: #25d366; color: #fff; }
+    .badge.err { background: #e53e3e; color: #fff; }
+    main { max-width: 920px; margin: 24px auto; padding: 0 16px; }
+    .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 2px solid #ddd; }
+    .tab { padding: 10px 20px; cursor: pointer; font-weight: 500; border-radius: 6px 6px 0 0; color: #555; background: #e8eaed; border: none; font-size: 0.95rem; }
+    .tab.active { background: #fff; color: #075e54; border-bottom: 2px solid #fff; margin-bottom: -2px; }
+    .panel { display: none; background: #fff; border-radius: 0 8px 8px 8px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+    .panel.active { display: block; }
+    label { display: block; font-size: 0.85rem; font-weight: 600; color: #444; margin-bottom: 4px; margin-top: 14px; }
+    input, textarea, select { width: 100%; padding: 9px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.95rem; }
+    textarea { resize: vertical; min-height: 90px; }
+    .grupo-check { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+    .grupo-check input[type=checkbox] { width: auto; }
+    button.btn { margin-top: 18px; padding: 10px 22px; border: none; border-radius: 6px; font-size: 0.95rem; font-weight: 600; cursor: pointer; }
+    .btn-primary { background: #075e54; color: #fff; }
+    .btn-primary:hover { background: #064e45; }
+    .btn-secondary { background: #25d366; color: #fff; }
+    .btn-secondary:hover { background: #1da850; }
+    .btn-run { background: #3182ce; color: #fff; font-size: 0.85rem; padding: 6px 14px; margin: 0; }
+    .btn-run:hover { background: #2b6cb0; }
+    .alerta { margin-top: 14px; padding: 10px 14px; border-radius: 6px; font-size: 0.9rem; display: none; }
+    .alerta.ok { background: #c6f6d5; color: #276749; }
+    .alerta.err { background: #fed7d7; color: #742a2a; }
+    .prog-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 18px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+    .prog-card h3 { font-size: 0.95rem; font-weight: 600; }
+    .prog-card p { font-size: 0.82rem; color: #666; margin-top: 2px; }
+    .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+    .dot.on { background: #25d366; }
+    .dot.off { background: #ccc; }
+    .file-label { display: inline-block; padding: 8px 14px; background: #edf2f7; border: 1px solid #ccc; border-radius: 6px; cursor: pointer; font-size: 0.88rem; margin-top: 6px; }
+    #wsp-estado, #email-estado, #todo-estado, #cron-estado { }
+    .hint { font-size: 0.8rem; color: #888; margin-top: 3px; }
+  </style>
+</head>
+<body>
+<header>
+  <svg width="28" height="28" viewBox="0 0 32 32" fill="white"><path d="M16 2C8.28 2 2 8.28 2 16c0 2.46.66 4.77 1.8 6.77L2 30l7.45-1.76A13.9 13.9 0 0016 30c7.72 0 14-6.28 14-14S23.72 2 16 2zm0 25.4c-2.2 0-4.26-.6-6.03-1.63l-.43-.25-4.42 1.04 1.07-4.3-.28-.45A11.37 11.37 0 014.6 16C4.6 9.7 9.7 4.6 16 4.6S27.4 9.7 27.4 16 22.3 27.4 16 27.4zm6.23-8.54c-.34-.17-2.02-.99-2.33-1.1-.31-.12-.54-.17-.77.17-.22.34-.87 1.1-1.07 1.33-.2.22-.39.25-.73.08-.34-.17-1.44-.53-2.74-1.69-1.01-.9-1.7-2.01-1.9-2.35-.2-.34-.02-.52.15-.69l.5-.55c.16-.18.22-.34.33-.56.11-.22.06-.42-.03-.59-.08-.17-.77-1.85-1.05-2.53-.28-.67-.56-.58-.77-.59l-.65-.01c-.23 0-.59.08-.9.42-.3.34-1.17 1.14-1.17 2.78s1.2 3.23 1.37 3.45c.17.22 2.36 3.6 5.72 5.05.8.34 1.42.55 1.9.7.8.25 1.53.22 2.1.13.64-.1 2.02-.82 2.3-1.62.28-.8.28-1.48.2-1.62-.08-.14-.3-.22-.64-.39z"/></svg>
+  <h1>Panel de Mensajes — Seguimiento TP</h1>
+  <span id="wa-badge" class="badge err" style="margin-left:auto">WhatsApp ✗</span>
+</header>
+
+<main>
+  <div class="tabs">
+    <button class="tab active" onclick="mostrarTab('combinado')">Envio Combinado</button>
+    <button class="tab" onclick="mostrarTab('whatsapp')">Solo WhatsApp</button>
+    <button class="tab" onclick="mostrarTab('email')">Solo Email</button>
+    <button class="tab" onclick="mostrarTab('programaciones')">Programaciones</button>
+  </div>
+
+  <!-- COMBINADO -->
+  <div id="tab-combinado" class="panel active">
+    <p style="color:#555;margin-bottom:8px">Envia el mismo mensaje a grupos de WhatsApp y correos al mismo tiempo.</p>
+    <label>Mensaje</label>
+    <textarea id="c-msg" placeholder="Escribe el mensaje aqui..."></textarea>
+    <label>Foto adjunta (opcional)</label>
+    <input type="file" id="c-foto" accept="image/*">
+    <label>Grupos WhatsApp</label>
+    <div id="c-grupos"></div>
+    <label>Correos (separados por coma)</label>
+    <input id="c-emails" type="text" placeholder="gerente@empresa.com, ventas@empresa.com">
+    <p class="hint">Tambien puedes seleccionar grupos predefinidos abajo o ingresar correos directamente.</p>
+    <label>Grupos de correo predefinidos</label>
+    <div id="c-email-grupos"></div>
+    <label>Asunto del correo</label>
+    <input id="c-asunto" type="text" placeholder="(Opcional, si esta vacio usa el inicio del mensaje)">
+    <button class="btn btn-secondary" onclick="enviarTodo()">Enviar a todo</button>
+    <div id="todo-estado" class="alerta"></div>
+  </div>
+
+  <!-- WHATSAPP -->
+  <div id="tab-whatsapp" class="panel">
+    <label>Selecciona el grupo</label>
+    <select id="wsp-grupo"></select>
+    <label>Mensaje</label>
+    <textarea id="wsp-msg" placeholder="Escribe el mensaje..."></textarea>
+    <label>Foto adjunta (opcional)</label>
+    <input type="file" id="wsp-foto" accept="image/*">
+    <button class="btn btn-primary" onclick="enviarWhatsapp()">Enviar por WhatsApp</button>
+    <div id="wsp-estado" class="alerta"></div>
+  </div>
+
+  <!-- EMAIL -->
+  <div id="tab-email" class="panel">
+    <label>Para (separados por coma)</label>
+    <input id="email-para" type="text" placeholder="correo1@empresa.com, correo2@empresa.com">
+    <label>Asunto</label>
+    <input id="email-asunto" type="text" placeholder="Asunto del correo">
+    <label>Mensaje</label>
+    <textarea id="email-cuerpo" placeholder="Cuerpo del correo..."></textarea>
+    <label>Foto adjunta (opcional)</label>
+    <input type="file" id="email-foto" accept="image/*">
+    <button class="btn btn-primary" onclick="enviarEmail()">Enviar correo</button>
+    <div id="email-estado" class="alerta"></div>
+  </div>
+
+  <!-- PROGRAMACIONES -->
+  <div id="tab-programaciones" class="panel">
+    <p style="color:#555;margin-bottom:16px">Programaciones definidas en <code>config.json</code>. Para agregar o modificar, edita ese archivo.</p>
+    <div id="prog-lista"></div>
+    <div id="cron-estado" class="alerta"></div>
+  </div>
+</main>
+
+<script>
+let estado = { grupos: [], gruposConfig: [], destinatariosEmail: [], programaciones: [] };
+
+async function cargarEstado() {
+  const res = await fetch('/api/estado');
+  estado = await res.json();
+  document.getElementById('wa-badge').textContent = estado.whatsapp ? 'WhatsApp ✓' : 'WhatsApp ✗';
+  document.getElementById('wa-badge').className = 'badge ' + (estado.whatsapp ? 'ok' : 'err');
+  renderizarGrupos();
+  renderizarProgramaciones();
+}
+
+function renderizarGrupos() {
+  const fuente = estado.grupos.length > 0 ? estado.grupos : estado.gruposConfig.map(g => ({ nombre: g.nombre, chatId: g.chatId }));
+
+  // Select tab WhatsApp
+  const sel = document.getElementById('wsp-grupo');
+  sel.innerHTML = fuente.map(g => `<option value="${g.chatId}">${g.nombre}</option>`).join('');
+
+  // Checkboxes tab combinado
+  document.getElementById('c-grupos').innerHTML = fuente.map(g =>
+    `<div class="grupo-check"><input type="checkbox" id="cg-${g.chatId}" value="${g.chatId}"><label for="cg-${g.chatId}" style="font-weight:normal;margin:0">${g.nombre}</label></div>`
+  ).join('');
+
+  // Grupos de email predefinidos
+  document.getElementById('c-email-grupos').innerHTML = estado.destinatariosEmail.map(d =>
+    `<div class="grupo-check"><input type="checkbox" id="ce-${d.id}" data-emails='${JSON.stringify(d.direcciones)}'><label for="ce-${d.id}" style="font-weight:normal;margin:0">${d.nombre} (${d.direcciones.join(', ')})</label></div>`
+  ).join('');
+}
+
+function renderizarProgramaciones() {
+  document.getElementById('prog-lista').innerHTML = estado.programaciones.map(p =>
+    `<div class="prog-card">
+      <div>
+        <h3><span class="dot ${p.activo ? 'on' : 'off'}"></span>${p.descripcion}</h3>
+        <p>Cron: <code>${p.cron}</code> &nbsp;|&nbsp; WA: ${p.destinatariosWhatsapp?.join(', ') || '-'} &nbsp;|&nbsp; Email: ${p.destinatariosEmail?.join(', ') || '-'}</p>
+      </div>
+      <button class="btn btn-run" onclick="ejecutarCron('${p.id}')">▶ Ejecutar ahora</button>
+    </div>`
+  ).join('') || '<p style="color:#888">No hay programaciones configuradas.</p>';
+}
+
+function mostrarTab(id) {
+  document.querySelectorAll('.tab').forEach((t, i) => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+function mostrarAlerta(id, ok, msg) {
+  const el = document.getElementById(id);
+  el.className = 'alerta ' + (ok ? 'ok' : 'err');
+  el.textContent = msg;
+  el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 5000);
+}
+
+async function enviarWhatsapp() {
+  const fd = new FormData();
+  fd.append('chatId', document.getElementById('wsp-grupo').value);
+  fd.append('mensaje', document.getElementById('wsp-msg').value);
+  const foto = document.getElementById('wsp-foto').files[0];
+  if (foto) fd.append('foto', foto);
+  const res = await fetch('/api/whatsapp/enviar', { method: 'POST', body: fd });
+  const data = await res.json();
+  mostrarAlerta('wsp-estado', res.ok, data.mensaje || data.error);
+}
+
+async function enviarEmail() {
+  const fd = new FormData();
+  fd.append('para', document.getElementById('email-para').value);
+  fd.append('asunto', document.getElementById('email-asunto').value);
+  fd.append('cuerpo', document.getElementById('email-cuerpo').value);
+  const foto = document.getElementById('email-foto').files[0];
+  if (foto) fd.append('foto', foto);
+  const res = await fetch('/api/email/enviar', { method: 'POST', body: fd });
+  const data = await res.json();
+  mostrarAlerta('email-estado', res.ok, data.mensaje || data.error);
+}
+
+async function enviarTodo() {
+  const fd = new FormData();
+  fd.append('mensaje', document.getElementById('c-msg').value);
+  fd.append('asunto', document.getElementById('c-asunto').value);
+
+  const chats = [...document.querySelectorAll('#c-grupos input:checked')].map(i => i.value);
+  fd.append('chatsIds', JSON.stringify(chats));
+
+  let emails = document.getElementById('c-emails').value.split(',').map(e => e.trim()).filter(Boolean);
+  const emailsGrupos = [...document.querySelectorAll('#c-email-grupos input:checked')].flatMap(i => JSON.parse(i.dataset.emails));
+  emails = [...new Set([...emails, ...emailsGrupos])];
+  fd.append('emailsPara', JSON.stringify(emails));
+
+  const foto = document.getElementById('c-foto').files[0];
+  if (foto) fd.append('foto', foto);
+
+  const res = await fetch('/api/enviar-todo', { method: 'POST', body: fd });
+  const data = await res.json();
+  const ok = data.errores.length === 0;
+  const msg = ok ? 'Enviado correctamente' : 'Errores: ' + data.errores.map(e => e.error).join(', ');
+  mostrarAlerta('todo-estado', ok, msg);
+}
+
+async function ejecutarCron(id) {
+  const res = await fetch(`/api/programaciones/${id}/ejecutar`, { method: 'POST' });
+  const data = await res.json();
+  mostrarAlerta('cron-estado', data.ok, data.ok ? 'Programacion ejecutada correctamente' : 'Errores: ' + data.errores.join(', '));
+}
+
+cargarEstado();
+setInterval(cargarEstado, 15000);
+</script>
+</body>
+</html>

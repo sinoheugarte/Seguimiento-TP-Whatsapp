@@ -51,6 +51,17 @@
   <span id="wa-badge" class="badge err" style="margin-left:auto">WhatsApp ✗</span>
 </header>
 
+<!-- Modal QR -->
+<div id="qr-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;padding:32px;text-align:center;max-width:340px;width:90%">
+    <h2 style="margin-bottom:8px;font-size:1.1rem">Escanea el QR</h2>
+    <p style="color:#555;font-size:.85rem;margin-bottom:16px">Abre WhatsApp → Dispositivos vinculados → Vincular dispositivo</p>
+    <img id="qr-img" src="/api/qr" style="width:240px;height:240px;border:1px solid #eee;border-radius:8px"/>
+    <p style="color:#888;font-size:.78rem;margin-top:12px">El QR se refresca automaticamente cada 20 segundos</p>
+    <button class="btn btn-primary" style="margin-top:14px;width:100%" onclick="document.getElementById('qr-modal').style.display='none'">Cerrar</button>
+  </div>
+</div>
+
 <main>
   <div class="tabs">
     <button class="tab active" onclick="mostrarTab('combinado')">Envio Combinado</button>
@@ -121,8 +132,18 @@ async function cargarEstado() {
   estado = await res.json();
   document.getElementById('wa-badge').textContent = estado.whatsapp ? 'WhatsApp ✓' : 'WhatsApp ✗';
   document.getElementById('wa-badge').className = 'badge ' + (estado.whatsapp ? 'ok' : 'err');
+  if (!estado.whatsapp) mostrarQR();
+  else document.getElementById('qr-modal').style.display = 'none';
   renderizarGrupos();
   renderizarProgramaciones();
+}
+
+async function mostrarQR() {
+  const res = await fetch('/api/qr');
+  if (res.ok) {
+    document.getElementById('qr-modal').style.display = 'flex';
+    document.getElementById('qr-img').src = '/api/qr?t=' + Date.now();
+  }
 }
 
 function renderizarGrupos() {

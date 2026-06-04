@@ -18,7 +18,11 @@ function inicializar() {
     }
   });
 
-  return transporter.verify().then(() => {
+  const verificar = transporter.verify();
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('Timeout al conectar SMTP')), 8000)
+  );
+  return Promise.race([verificar, timeout]).then(() => {
     console.log('✓ Correo Outlook 365 conectado correctamente');
   });
 }

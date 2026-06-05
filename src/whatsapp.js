@@ -1,19 +1,25 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeInMemoryStore } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
 const P = require('pino');
 
 let socket = null;
-let store = null;
 let listo = false;
 let ultimoQR = null;
 let gruposCache = [];
+let contactosCache = new Map(); // chatId → nombre
 
 const AUTH_DIR = path.resolve('.baileys_auth');
 
 function log(msg) {
   console.log('[WhatsApp]', msg);
+}
+
+function procesarContacto(c) {
+  if (!c.id || !c.id.endsWith('@s.whatsapp.net')) return;
+  const nombre = c.name || c.notify || c.verifiedName || c.id.replace('@s.whatsapp.net', '');
+  contactosCache.set(c.id, nombre);
 }
 
 async function inicializar() {
@@ -22,9 +28,6 @@ async function inicializar() {
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
   const { version } = await fetchLatestBaileysVersion();
 
-  // El store guarda automáticamente contactos, chats y grupos al recibir eventos
-  store = makeInMemoryStore({ logger: P({ level: 'silent' }) });
-
   socket = makeWASocket({
     version,
     auth: state,
@@ -32,9 +35,6 @@ async function inicializar() {
     printQRInTerminal: false,
     browser: ['TP-Whatsapp', 'Chrome', '1.0']
   });
-
-  // Vincular el store al socket: recibe todos los eventos automáticamente
-  store.bind(socket.ev);
 
   socket.ev.on('creds.update', saveCreds);
 
@@ -69,7 +69,46 @@ async function inicializar() {
   socket.ev.on('groups.upsert', (grupos) => {
     for (const g of grupos) {
       const existe = gruposCache.find((x) => x.chatId === g.id);
-      if (!existe) gruposCache.push({ nombre: g.subject, chatId: g.id });
+      if (!existe) gruposCache.push({ nombre: g.subject || '', chatId: g.id });
+    }
+  });
+
+  // Carga masiva inicial: contactos + chats individuales
+  socket.ev.on('messaging-history.set', ({ contacts = [], chats = [] }) => {
+    for (const c of contacts) procesarContacto(c);
+    for (const c of chats) {
+      if (!c.id || !c.id.endsWith('@s.whatsapp.net')) continue;
+      if (contactosCache.has(c.id)) continue;
+      const nombre = c.name || c.id.replace('@s.whatsapp.net', '');
+      contactosCache.set(c.id, nombre);
+    }
+    log(`Contactos tras historial: ${contactosCache.size}`);
+  });
+
+  // Actualizaciones en tiempo real
+  socket.ev.on('contacts.upsert', (contacts) => {
+    for (const c of contacts) procesarContacto(c);
+  });
+
+  socket.ev.on('contacts.update', (updates) => {
+    for (const c of updates) procesarContacto(c);
+  });
+
+  // Chats nuevos/actualizados: extraer contactos individuales
+  socket.ev.on('chats.upsert', (chats) => {
+    for (const c of chats) {
+      if (!c.id || !c.id.endsWith('@s.whatsapp.net')) continue;
+      if (contactosCache.has(c.id)) continue;
+      const nombre = c.name || c.id.replace('@s.whatsapp.net', '');
+      contactosCache.set(c.id, nombre);
+    }
+  });
+
+  socket.ev.on('chats.update', (chats) => {
+    for (const c of chats) {
+      if (!c.id || !c.id.endsWith('@s.whatsapp.net')) continue;
+      if (!c.name) continue;
+      contactosCache.set(c.id, c.name);
     }
   });
 
@@ -146,33 +185,10 @@ async function listarGrupos() {
 
 function listarContactos() {
   if (!listo) throw new Error('WhatsApp no esta conectado');
-
-  // Leer del store de Baileys que se actualiza automáticamente con eventos
-  const contactsMap = store?.contacts || {};
-  const chatsMap = store?.chats?.all ? store.chats.all() : [];
-
-  const resultado = new Map();
-
-  // Fuente 1: contactos del store (tiene nombres de la libreta de direcciones)
-  for (const [id, c] of Object.entries(contactsMap)) {
-    if (!id.endsWith('@s.whatsapp.net')) continue;
-    const nombre = c.name || c.notify || c.verifiedName || id.replace('@s.whatsapp.net', '');
-    resultado.set(id, nombre);
-  }
-
-  // Fuente 2: chats individuales del store (cubre conversaciones recientes)
-  for (const chat of chatsMap) {
-    if (!chat.id || !chat.id.endsWith('@s.whatsapp.net')) continue;
-    if (resultado.has(chat.id)) continue;
-    const nombre = chat.name || chat.id.replace('@s.whatsapp.net', '');
-    resultado.set(chat.id, nombre);
-  }
-
   const lista = [];
-  for (const [chatId, nombre] of resultado) {
+  for (const [chatId, nombre] of contactosCache) {
     lista.push({ nombre, chatId });
   }
-  log(`Contactos disponibles: ${lista.length}`);
   return ordenarAlf(lista);
 }
 

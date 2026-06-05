@@ -12,36 +12,68 @@
     .badge { padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
     .badge.ok { background: #25d366; color: #fff; }
     .badge.err { background: #e53e3e; color: #fff; }
-    main { max-width: 920px; margin: 24px auto; padding: 0 16px; }
-    .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 2px solid #ddd; }
+    main { max-width: 960px; margin: 24px auto; padding: 0 16px; }
+    .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 2px solid #ddd; flex-wrap: wrap; }
     .tab { padding: 10px 20px; cursor: pointer; font-weight: 500; border-radius: 6px 6px 0 0; color: #555; background: #e8eaed; border: none; font-size: 0.95rem; }
     .tab.active { background: #fff; color: #075e54; border-bottom: 2px solid #fff; margin-bottom: -2px; }
     .panel { display: none; background: #fff; border-radius: 0 8px 8px 8px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
     .panel.active { display: block; }
     label { display: block; font-size: 0.85rem; font-weight: 600; color: #444; margin-bottom: 4px; margin-top: 14px; }
-    input, textarea, select { width: 100%; padding: 9px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.95rem; }
+    input[type=text], input[type=email], textarea, select { width: 100%; padding: 9px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.95rem; }
     textarea { resize: vertical; min-height: 90px; }
-    .grupo-check { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
-    .grupo-check input[type=checkbox] { width: auto; }
-    button.btn { margin-top: 18px; padding: 10px 22px; border: none; border-radius: 6px; font-size: 0.95rem; font-weight: 600; cursor: pointer; }
+    button.btn { margin-top: 18px; padding: 10px 22px; border: none; border-radius: 6px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: background .2s, transform .1s; }
+    button.btn:active { transform: scale(.97); }
     .btn-primary { background: #075e54; color: #fff; }
     .btn-primary:hover { background: #064e45; }
     .btn-secondary { background: #25d366; color: #fff; }
     .btn-secondary:hover { background: #1da850; }
+    .btn-enviado { background: #276749 !important; color: #fff !important; }
+    .btn-error { background: #c53030 !important; color: #fff !important; }
+    .btn-cargando { background: #999 !important; color: #fff !important; cursor: wait !important; }
     .btn-run { background: #3182ce; color: #fff; font-size: 0.85rem; padding: 6px 14px; margin: 0; }
     .btn-run:hover { background: #2b6cb0; }
-    .alerta { margin-top: 14px; padding: 10px 14px; border-radius: 6px; font-size: 0.9rem; display: none; }
-    .alerta.ok { background: #c6f6d5; color: #276749; }
-    .alerta.err { background: #fed7d7; color: #742a2a; }
-    .prog-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 18px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
-    .prog-card h3 { font-size: 0.95rem; font-weight: 600; }
-    .prog-card p { font-size: 0.82rem; color: #666; margin-top: 2px; }
+    .btn-danger { background: #e53e3e; color: #fff; font-size: 0.85rem; padding: 6px 14px; margin: 0; }
+    .btn-sm { font-size: 0.82rem; padding: 5px 12px; margin-top: 0; }
+    .alerta { margin-top: 14px; padding: 12px 16px; border-radius: 6px; font-size: 0.9rem; display: none; font-weight: 500; }
+    .alerta.ok { background: #c6f6d5; color: #276749; border: 1px solid #9ae6b4; }
+    .alerta.err { background: #fed7d7; color: #742a2a; border: 1px solid #fc8181; }
+    .hint { font-size: 0.8rem; color: #888; margin-top: 3px; }
+
+    /* ── Selector de grupos tipo dropdown ── */
+    .grupos-selector { border: 1px solid #ccc; border-radius: 6px; overflow: hidden; margin-top: 6px; }
+    .grupos-header { display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; background: #f7f7f7; cursor: pointer; user-select: none; font-size: 0.9rem; }
+    .grupos-header:hover { background: #efefef; }
+    .grupos-header .cuenta { font-size: 0.8rem; color: #075e54; font-weight: 600; }
+    .grupos-body { display: none; border-top: 1px solid #eee; }
+    .grupos-body.abierto { display: block; }
+    .grupos-search { padding: 8px 10px; border-bottom: 1px solid #eee; }
+    .grupos-search input { border: 1px solid #ddd; border-radius: 4px; padding: 6px 10px; font-size: 0.88rem; width: 100%; }
+    .grupos-lista { max-height: 220px; overflow-y: auto; padding: 4px 0; }
+    .grupo-check { display: flex; align-items: center; gap: 8px; padding: 6px 12px; cursor: pointer; }
+    .grupo-check:hover { background: #f0faf5; }
+    .grupo-check input[type=checkbox] { width: 16px; height: 16px; accent-color: #075e54; cursor: pointer; }
+    .grupo-check label { font-weight: normal; margin: 0; cursor: pointer; font-size: 0.9rem; color: #333; }
+    .grupos-acciones { display: flex; gap: 8px; padding: 6px 12px; border-top: 1px solid #eee; background: #fafafa; }
+    .grupos-acciones button { font-size: 0.78rem; padding: 3px 10px; margin: 0; border: 1px solid #ccc; background: #fff; border-radius: 4px; cursor: pointer; }
+    .grupos-acciones button:hover { background: #f0f0f0; }
+
+    /* ── Programaciones ── */
+    .prog-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 18px; margin-bottom: 12px; }
+    .prog-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+    .prog-info h3 { font-size: 0.95rem; font-weight: 600; }
+    .prog-info p { font-size: 0.82rem; color: #666; margin-top: 3px; }
+    .prog-acciones { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+    .prog-form { margin-top: 14px; border-top: 1px solid #eee; padding-top: 14px; display: none; }
+    .prog-form.visible { display: block; }
+    .prog-form input, .prog-form textarea, .prog-form select { margin-bottom: 8px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
     .dot.on { background: #25d366; }
     .dot.off { background: #ccc; }
-    .file-label { display: inline-block; padding: 8px 14px; background: #edf2f7; border: 1px solid #ccc; border-radius: 6px; cursor: pointer; font-size: 0.88rem; margin-top: 6px; }
-    #wsp-estado, #email-estado, #todo-estado, #cron-estado { }
-    .hint { font-size: 0.8rem; color: #888; margin-top: 3px; }
+    .nueva-prog-btn { margin-top: 0; margin-bottom: 16px; }
+    .toggle-activo { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 0.88rem; }
+    .toggle-activo input { width: auto; }
+    hr { border: none; border-top: 1px solid #eee; margin: 16px 0; }
   </style>
 </head>
 <body>
@@ -57,17 +89,17 @@
     <h2 style="margin-bottom:8px;font-size:1.1rem">Escanea el QR</h2>
     <p style="color:#555;font-size:.85rem;margin-bottom:16px">Abre WhatsApp → Dispositivos vinculados → Vincular dispositivo</p>
     <img id="qr-img" src="/api/qr" style="width:240px;height:240px;border:1px solid #eee;border-radius:8px"/>
-    <p style="color:#888;font-size:.78rem;margin-top:12px">El QR se refresca automaticamente cada 20 segundos</p>
+    <p style="color:#888;font-size:.78rem;margin-top:12px">El QR se refresca automaticamente</p>
     <button class="btn btn-primary" style="margin-top:14px;width:100%" onclick="document.getElementById('qr-modal').style.display='none'">Cerrar</button>
   </div>
 </div>
 
 <main>
   <div class="tabs">
-    <button class="tab active" onclick="mostrarTab('combinado')">Envio Combinado</button>
-    <button class="tab" onclick="mostrarTab('whatsapp')">Solo WhatsApp</button>
-    <button class="tab" onclick="mostrarTab('email')">Solo Email</button>
-    <button class="tab" onclick="mostrarTab('programaciones')">Programaciones</button>
+    <button class="tab active" onclick="mostrarTab('combinado',this)">Envio Combinado</button>
+    <button class="tab" onclick="mostrarTab('whatsapp',this)">Solo WhatsApp</button>
+    <button class="tab" onclick="mostrarTab('email',this)">Solo Email</button>
+    <button class="tab" onclick="mostrarTab('programaciones',this)">Programaciones</button>
   </div>
 
   <!-- COMBINADO -->
@@ -77,16 +109,34 @@
     <textarea id="c-msg" placeholder="Escribe el mensaje aqui..."></textarea>
     <label>Foto adjunta (opcional)</label>
     <input type="file" id="c-foto" accept="image/*">
+
     <label>Grupos WhatsApp</label>
-    <div id="c-grupos"></div>
-    <label>Correos (separados por coma)</label>
+    <div class="grupos-selector">
+      <div class="grupos-header" onclick="toggleGrupos('c-grupos-body')">
+        <span>Seleccionar grupos</span>
+        <span id="c-grupos-cuenta" class="cuenta"></span>
+        <span>▾</span>
+      </div>
+      <div id="c-grupos-body" class="grupos-body">
+        <div class="grupos-search"><input type="text" placeholder="Buscar grupo..." oninput="filtrarGrupos(this,'c-lista-grupos')"></div>
+        <div id="c-lista-grupos" class="grupos-lista"></div>
+        <div class="grupos-acciones">
+          <button onclick="seleccionarTodos('c-lista-grupos',true)">Seleccionar todos</button>
+          <button onclick="seleccionarTodos('c-lista-grupos',false)">Deseleccionar todos</button>
+        </div>
+      </div>
+    </div>
+
+    <label>Correos destinatarios (separados por coma)</label>
     <input id="c-emails" type="text" placeholder="gerente@empresa.com, ventas@empresa.com">
-    <p class="hint">Tambien puedes seleccionar grupos predefinidos abajo o ingresar correos directamente.</p>
+
     <label>Grupos de correo predefinidos</label>
     <div id="c-email-grupos"></div>
+
     <label>Asunto del correo</label>
-    <input id="c-asunto" type="text" placeholder="(Opcional, si esta vacio usa el inicio del mensaje)">
-    <button class="btn btn-secondary" onclick="enviarTodo()">Enviar a todo</button>
+    <input id="c-asunto" type="text" placeholder="(Opcional — si esta vacio usa el inicio del mensaje)">
+
+    <button id="btn-enviar-todo" class="btn btn-secondary" onclick="enviarTodo(this)">Enviar a todo</button>
     <div id="todo-estado" class="alerta"></div>
   </div>
 
@@ -98,7 +148,7 @@
     <textarea id="wsp-msg" placeholder="Escribe el mensaje..."></textarea>
     <label>Foto adjunta (opcional)</label>
     <input type="file" id="wsp-foto" accept="image/*">
-    <button class="btn btn-primary" onclick="enviarWhatsapp()">Enviar por WhatsApp</button>
+    <button id="btn-enviar-wsp" class="btn btn-primary" onclick="enviarWhatsapp(this)">Enviar por WhatsApp</button>
     <div id="wsp-estado" class="alerta"></div>
   </div>
 
@@ -112,13 +162,46 @@
     <textarea id="email-cuerpo" placeholder="Cuerpo del correo..."></textarea>
     <label>Foto adjunta (opcional)</label>
     <input type="file" id="email-foto" accept="image/*">
-    <button class="btn btn-primary" onclick="enviarEmail()">Enviar correo</button>
+    <button id="btn-enviar-email" class="btn btn-primary" onclick="enviarEmail(this)">Enviar correo</button>
     <div id="email-estado" class="alerta"></div>
   </div>
 
   <!-- PROGRAMACIONES -->
   <div id="tab-programaciones" class="panel">
-    <p style="color:#555;margin-bottom:16px">Programaciones definidas en <code>config.json</code>. Para agregar o modificar, edita ese archivo.</p>
+    <button class="btn btn-primary nueva-prog-btn" onclick="mostrarFormNueva()">+ Nueva programacion</button>
+
+    <!-- Formulario nueva programacion -->
+    <div id="form-nueva-prog" class="prog-form" style="border:1px solid #bee3f8;border-radius:8px;padding:16px;background:#ebf8ff;margin-bottom:16px;">
+      <strong style="font-size:.95rem">Nueva programacion</strong>
+      <label>Descripcion</label>
+      <input type="text" id="np-desc" placeholder="Ej: Reporte semanal cada lunes">
+      <div class="form-row">
+        <div>
+          <label>Expresion Cron</label>
+          <input type="text" id="np-cron" placeholder="0 9 * * 1">
+          <p class="hint">Lunes 9am: 0 9 * * 1 | Diario 8am: 0 8 * * *</p>
+        </div>
+        <div>
+          <label>Asunto del correo</label>
+          <input type="text" id="np-asunto" placeholder="Reporte {{fecha}}">
+        </div>
+      </div>
+      <label>Mensaje</label>
+      <textarea id="np-msg" placeholder="Texto del mensaje automatico..." style="min-height:70px"></textarea>
+      <label>Grupos WhatsApp destino (IDs separados por coma)</label>
+      <input type="text" id="np-wa" placeholder="grupo-ventas, grupo-operaciones">
+      <label>Grupos email destino (IDs separados por coma)</label>
+      <input type="text" id="np-email" placeholder="gerencia, ventas">
+      <div class="toggle-activo">
+        <input type="checkbox" id="np-activo" checked>
+        <label for="np-activo">Activar inmediatamente</label>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button class="btn btn-primary btn-sm" onclick="crearProgramacion()">Guardar</button>
+        <button class="btn btn-sm" style="background:#eee;color:#333;margin-top:0" onclick="cerrarFormNueva()">Cancelar</button>
+      </div>
+    </div>
+
     <div id="prog-lista"></div>
     <div id="cron-estado" class="alerta"></div>
   </div>
@@ -126,6 +209,8 @@
 
 <script>
 let estado = { grupos: [], gruposConfig: [], destinatariosEmail: [], programaciones: [] };
+
+// ── Estado ──────────────────────────────────────────────────────────────────
 
 async function cargarEstado() {
   const res = await fetch('/api/estado');
@@ -146,56 +231,97 @@ async function mostrarQR() {
   }
 }
 
-function renderizarGrupos() {
-  const fuente = estado.grupos.length > 0 ? estado.grupos : estado.gruposConfig.map(g => ({ nombre: g.nombre, chatId: g.chatId }));
+// ── Grupos ───────────────────────────────────────────────────────────────────
 
-  // Select tab WhatsApp — preserva seleccion actual
+function renderizarGrupos() {
+  const fuente = estado.grupos.length > 0
+    ? estado.grupos
+    : estado.gruposConfig.map(g => ({ nombre: g.nombre, chatId: g.chatId }));
+
+  // Select tab WhatsApp
   const sel = document.getElementById('wsp-grupo');
   const selActual = sel.value;
   sel.innerHTML = fuente.map(g => `<option value="${g.chatId}">${g.nombre}</option>`).join('');
   if (selActual) sel.value = selActual;
 
-  // Checkboxes tab combinado — preserva selecciones actuales
-  const marcados = new Set([...document.querySelectorAll('#c-grupos input:checked')].map(i => i.value));
-  document.getElementById('c-grupos').innerHTML = fuente.map(g =>
-    `<div class="grupo-check"><input type="checkbox" id="cg-${g.chatId}" value="${g.chatId}" ${marcados.has(g.chatId) ? 'checked' : ''}><label for="cg-${g.chatId}" style="font-weight:normal;margin:0">${g.nombre}</label></div>`
+  // Checkboxes combinado — preserva seleccionados
+  const marcados = new Set([...document.querySelectorAll('#c-lista-grupos input:checked')].map(i => i.value));
+  const lista = document.getElementById('c-lista-grupos');
+  lista.innerHTML = fuente.map(g =>
+    `<div class="grupo-check" data-nombre="${g.nombre.toLowerCase()}">
+      <input type="checkbox" id="cg-${g.chatId}" value="${g.chatId}" ${marcados.has(g.chatId) ? 'checked' : ''} onchange="actualizarCuenta()">
+      <label for="cg-${g.chatId}">${g.nombre}</label>
+    </div>`
   ).join('');
+  actualizarCuenta();
 
-  // Grupos de email predefinidos — preserva selecciones actuales
+  // Email grupos predefinidos
   const marcadosEmail = new Set([...document.querySelectorAll('#c-email-grupos input:checked')].map(i => i.id));
   document.getElementById('c-email-grupos').innerHTML = estado.destinatariosEmail.map(d =>
-    `<div class="grupo-check"><input type="checkbox" id="ce-${d.id}" data-emails='${JSON.stringify(d.direcciones)}' ${marcadosEmail.has('ce-' + d.id) ? 'checked' : ''}><label for="ce-${d.id}" style="font-weight:normal;margin:0">${d.nombre} (${d.direcciones.join(', ')})</label></div>`
+    `<div class="grupo-check">
+      <input type="checkbox" id="ce-${d.id}" data-emails='${JSON.stringify(d.direcciones)}' ${marcadosEmail.has('ce-' + d.id) ? 'checked' : ''}>
+      <label for="ce-${d.id}" style="font-weight:normal;margin:0">${d.nombre} (${d.direcciones.join(', ')})</label>
+    </div>`
   ).join('');
 }
 
-function renderizarProgramaciones() {
-  document.getElementById('prog-lista').innerHTML = estado.programaciones.map(p =>
-    `<div class="prog-card">
-      <div>
-        <h3><span class="dot ${p.activo ? 'on' : 'off'}"></span>${p.descripcion}</h3>
-        <p>Cron: <code>${p.cron}</code> &nbsp;|&nbsp; WA: ${p.destinatariosWhatsapp?.join(', ') || '-'} &nbsp;|&nbsp; Email: ${p.destinatariosEmail?.join(', ') || '-'}</p>
-      </div>
-      <button class="btn btn-run" onclick="ejecutarCron('${p.id}')">▶ Ejecutar ahora</button>
-    </div>`
-  ).join('') || '<p style="color:#888">No hay programaciones configuradas.</p>';
+function toggleGrupos(id) {
+  document.getElementById(id).classList.toggle('abierto');
 }
 
-function mostrarTab(id) {
-  document.querySelectorAll('.tab').forEach((t, i) => t.classList.remove('active'));
-  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-  document.getElementById('tab-' + id).classList.add('active');
-  event.target.classList.add('active');
+function filtrarGrupos(input, listaId) {
+  const q = input.value.toLowerCase();
+  document.querySelectorAll(`#${listaId} .grupo-check`).forEach(el => {
+    el.style.display = el.dataset.nombre.includes(q) ? '' : 'none';
+  });
 }
+
+function seleccionarTodos(listaId, marcar) {
+  document.querySelectorAll(`#${listaId} input[type=checkbox]`).forEach(cb => {
+    if (cb.closest('.grupo-check').style.display !== 'none') cb.checked = marcar;
+  });
+  actualizarCuenta();
+}
+
+function actualizarCuenta() {
+  const n = document.querySelectorAll('#c-lista-grupos input:checked').length;
+  const el = document.getElementById('c-grupos-cuenta');
+  el.textContent = n > 0 ? `${n} seleccionado${n > 1 ? 's' : ''}` : '';
+}
+
+// ── Boton con feedback ────────────────────────────────────────────────────────
+
+function setBtnEstado(btn, estado) {
+  btn.disabled = estado !== 'normal';
+  btn.classList.remove('btn-secondary', 'btn-primary', 'btn-enviado', 'btn-error', 'btn-cargando');
+  if (estado === 'cargando') { btn.classList.add('btn-cargando'); btn.textContent = 'Enviando...'; }
+  else if (estado === 'ok')   { btn.classList.add('btn-enviado');  btn.textContent = '✓ Enviado'; }
+  else if (estado === 'err')  { btn.classList.add('btn-error');    btn.textContent = '✗ Error al enviar'; }
+  else {
+    const orig = btn.dataset.orig || btn.textContent;
+    btn.dataset.orig = orig;
+    btn.classList.add(btn.dataset.clase || 'btn-secondary');
+    btn.textContent = orig;
+  }
+}
+
+function resetBtn(btn, ms = 4000) {
+  setTimeout(() => setBtnEstado(btn, 'normal'), ms);
+}
+
+// ── Envios ────────────────────────────────────────────────────────────────────
 
 function mostrarAlerta(id, ok, msg) {
   const el = document.getElementById(id);
   el.className = 'alerta ' + (ok ? 'ok' : 'err');
   el.textContent = msg;
   el.style.display = 'block';
-  setTimeout(() => el.style.display = 'none', 5000);
+  setTimeout(() => el.style.display = 'none', 6000);
 }
 
-async function enviarWhatsapp() {
+async function enviarWhatsapp(btn) {
+  btn.dataset.clase = 'btn-primary';
+  setBtnEstado(btn, 'cargando');
   const fd = new FormData();
   fd.append('chatId', document.getElementById('wsp-grupo').value);
   fd.append('mensaje', document.getElementById('wsp-msg').value);
@@ -203,10 +329,14 @@ async function enviarWhatsapp() {
   if (foto) fd.append('foto', foto);
   const res = await fetch('/api/whatsapp/enviar', { method: 'POST', body: fd });
   const data = await res.json();
+  setBtnEstado(btn, res.ok ? 'ok' : 'err');
   mostrarAlerta('wsp-estado', res.ok, data.mensaje || data.error);
+  resetBtn(btn);
 }
 
-async function enviarEmail() {
+async function enviarEmail(btn) {
+  btn.dataset.clase = 'btn-primary';
+  setBtnEstado(btn, 'cargando');
   const fd = new FormData();
   fd.append('para', document.getElementById('email-para').value);
   fd.append('asunto', document.getElementById('email-asunto').value);
@@ -215,15 +345,20 @@ async function enviarEmail() {
   if (foto) fd.append('foto', foto);
   const res = await fetch('/api/email/enviar', { method: 'POST', body: fd });
   const data = await res.json();
+  setBtnEstado(btn, res.ok ? 'ok' : 'err');
   mostrarAlerta('email-estado', res.ok, data.mensaje || data.error);
+  resetBtn(btn);
 }
 
-async function enviarTodo() {
+async function enviarTodo(btn) {
+  btn.dataset.clase = 'btn-secondary';
+  setBtnEstado(btn, 'cargando');
+
   const fd = new FormData();
   fd.append('mensaje', document.getElementById('c-msg').value);
   fd.append('asunto', document.getElementById('c-asunto').value);
 
-  const chats = [...document.querySelectorAll('#c-grupos input:checked')].map(i => i.value);
+  const chats = [...document.querySelectorAll('#c-lista-grupos input:checked')].map(i => i.value);
   fd.append('chatsIds', JSON.stringify(chats));
 
   let emails = document.getElementById('c-emails').value.split(',').map(e => e.trim()).filter(Boolean);
@@ -237,14 +372,156 @@ async function enviarTodo() {
   const res = await fetch('/api/enviar-todo', { method: 'POST', body: fd });
   const data = await res.json();
   const ok = data.errores.length === 0;
-  const msg = ok ? 'Enviado correctamente' : 'Errores: ' + data.errores.map(e => e.error).join(', ');
+
+  setBtnEstado(btn, ok ? 'ok' : 'err');
+
+  let msg = '';
+  if (ok) {
+    const wa = data.whatsapp.length;
+    const em = data.email.length;
+    msg = `Enviado correctamente — ${wa} grupo${wa !== 1 ? 's' : ''} de WhatsApp${em > 0 ? ` y ${em} correo${em !== 1 ? 's' : ''}` : ''}`;
+  } else {
+    msg = 'Errores: ' + data.errores.map(e => e.error).join(', ');
+  }
   mostrarAlerta('todo-estado', ok, msg);
+  resetBtn(btn, 5000);
+}
+
+// ── Programaciones ────────────────────────────────────────────────────────────
+
+function renderizarProgramaciones() {
+  const lista = document.getElementById('prog-lista');
+  if (!estado.programaciones.length) {
+    lista.innerHTML = '<p style="color:#888">No hay programaciones. Crea la primera con el boton de arriba.</p>';
+    return;
+  }
+  lista.innerHTML = estado.programaciones.map(p => `
+    <div class="prog-card" id="card-${p.id}">
+      <div class="prog-card-header">
+        <div class="prog-info">
+          <h3><span class="dot ${p.activo ? 'on' : 'off'}"></span>${p.descripcion}</h3>
+          <p>Cron: <code>${p.cron}</code> &nbsp;|&nbsp; WA: ${p.destinatariosWhatsapp?.join(', ') || '-'} &nbsp;|&nbsp; Email: ${p.destinatariosEmail?.join(', ') || '-'}</p>
+          <p style="margin-top:4px;color:#555;font-size:.82rem">${p.mensaje ? '"' + p.mensaje.slice(0,80) + (p.mensaje.length > 80 ? '...' : '') + '"' : ''}</p>
+        </div>
+        <div class="prog-acciones">
+          <button class="btn btn-run btn-sm" onclick="ejecutarCron('${p.id}')">▶ Ejecutar</button>
+          <button class="btn btn-sm" style="background:#edf2f7;color:#333;margin-top:0" onclick="toggleEditarProg('${p.id}')">✏ Editar</button>
+          <button class="btn btn-danger btn-sm" onclick="eliminarProg('${p.id}')">✕</button>
+        </div>
+      </div>
+      <div id="edit-${p.id}" class="prog-form">
+        <div class="form-row">
+          <div>
+            <label>Descripcion</label>
+            <input type="text" id="ed-desc-${p.id}" value="${p.descripcion}">
+          </div>
+          <div>
+            <label>Cron</label>
+            <input type="text" id="ed-cron-${p.id}" value="${p.cron}">
+          </div>
+        </div>
+        <label>Mensaje</label>
+        <textarea id="ed-msg-${p.id}" style="min-height:60px">${p.mensaje || ''}</textarea>
+        <div class="form-row">
+          <div>
+            <label>Grupos WhatsApp (IDs)</label>
+            <input type="text" id="ed-wa-${p.id}" value="${(p.destinatariosWhatsapp || []).join(', ')}">
+          </div>
+          <div>
+            <label>Grupos Email (IDs)</label>
+            <input type="text" id="ed-email-${p.id}" value="${(p.destinatariosEmail || []).join(', ')}">
+          </div>
+        </div>
+        <label>Asunto email</label>
+        <input type="text" id="ed-asunto-${p.id}" value="${p.asuntoEmail || ''}">
+        <div class="toggle-activo">
+          <input type="checkbox" id="ed-activo-${p.id}" ${p.activo ? 'checked' : ''}>
+          <label for="ed-activo-${p.id}">Activo</label>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button class="btn btn-primary btn-sm" onclick="guardarProg('${p.id}')">Guardar cambios</button>
+          <button class="btn btn-sm" style="background:#eee;color:#333;margin-top:0" onclick="toggleEditarProg('${p.id}')">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function toggleEditarProg(id) {
+  document.getElementById('edit-' + id).classList.toggle('visible');
+}
+
+function mostrarFormNueva() {
+  document.getElementById('form-nueva-prog').style.display = 'block';
+}
+
+function cerrarFormNueva() {
+  document.getElementById('form-nueva-prog').style.display = 'none';
+}
+
+async function crearProgramacion() {
+  const body = {
+    descripcion: document.getElementById('np-desc').value,
+    cron: document.getElementById('np-cron').value,
+    mensaje: document.getElementById('np-msg').value,
+    asuntoEmail: document.getElementById('np-asunto').value,
+    activo: document.getElementById('np-activo').checked,
+    destinatariosWhatsapp: document.getElementById('np-wa').value.split(',').map(s => s.trim()).filter(Boolean),
+    destinatariosEmail: document.getElementById('np-email').value.split(',').map(s => s.trim()).filter(Boolean),
+    foto: null
+  };
+  const res = await fetch('/api/programaciones', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const data = await res.json();
+  if (data.ok) {
+    cerrarFormNueva();
+    await cargarEstado();
+    mostrarAlerta('cron-estado', true, 'Programacion creada correctamente');
+  } else {
+    mostrarAlerta('cron-estado', false, data.error);
+  }
+}
+
+async function guardarProg(id) {
+  const body = {
+    descripcion: document.getElementById(`ed-desc-${id}`).value,
+    cron: document.getElementById(`ed-cron-${id}`).value,
+    mensaje: document.getElementById(`ed-msg-${id}`).value,
+    asuntoEmail: document.getElementById(`ed-asunto-${id}`).value,
+    activo: document.getElementById(`ed-activo-${id}`).checked,
+    destinatariosWhatsapp: document.getElementById(`ed-wa-${id}`).value.split(',').map(s => s.trim()).filter(Boolean),
+    destinatariosEmail: document.getElementById(`ed-email-${id}`).value.split(',').map(s => s.trim()).filter(Boolean)
+  };
+  const res = await fetch(`/api/programaciones/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const data = await res.json();
+  if (data.ok) {
+    await cargarEstado();
+    mostrarAlerta('cron-estado', true, 'Programacion actualizada correctamente');
+  } else {
+    mostrarAlerta('cron-estado', false, data.error);
+  }
+}
+
+async function eliminarProg(id) {
+  if (!confirm('¿Eliminar esta programacion?')) return;
+  const res = await fetch(`/api/programaciones/${id}`, { method: 'DELETE' });
+  const data = await res.json();
+  if (data.ok) {
+    await cargarEstado();
+    mostrarAlerta('cron-estado', true, 'Programacion eliminada');
+  }
 }
 
 async function ejecutarCron(id) {
   const res = await fetch(`/api/programaciones/${id}/ejecutar`, { method: 'POST' });
   const data = await res.json();
-  mostrarAlerta('cron-estado', data.ok, data.ok ? 'Programacion ejecutada correctamente' : 'Errores: ' + data.errores.join(', '));
+  mostrarAlerta('cron-estado', data.ok, data.ok ? 'Ejecutado correctamente' : 'Errores: ' + data.errores.join(', '));
+}
+
+function mostrarTab(id, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  btn.classList.add('active');
 }
 
 cargarEstado();

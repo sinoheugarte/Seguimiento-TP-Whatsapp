@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { enviarMensaje, listarGrupos, estaListo, getUltimoQR } = require('./whatsapp');
+const { enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR } = require('./whatsapp');
 const qrcode = require('qrcode');
 const { enviarCorreo } = require('./email');
 const { ejecutarProgramacion, iniciarProgramaciones, detenerTodo } = require('./scheduler');
@@ -46,10 +46,13 @@ app.get('/api/qr', async (req, res) => {
 // ── Estado ───────────────────────────────────────────────────────────────────
 app.get('/api/estado', async (req, res) => {
   const config = leerConfig();
-  const grupos = estaListo() ? await listarGrupos() : [];
+  const conectado = estaListo();
+  const grupos = conectado ? await listarGrupos() : [];
+  const contactos = conectado ? listarContactos() : [];
   res.json({
-    whatsapp: estaListo(),
+    whatsapp: conectado,
     grupos,
+    contactos,
     gruposConfig: config.whatsapp.grupos,
     destinatariosEmail: config.email.destinatarios,
     programaciones: config.programaciones

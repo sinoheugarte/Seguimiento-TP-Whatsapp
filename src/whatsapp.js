@@ -8,6 +8,7 @@ let socket = null;
 let listo = false;
 let ultimoQR = null;
 let gruposCache = [];
+let contactosCache = new Map(); // chatId → nombre
 
 const AUTH_DIR = path.resolve('.baileys_auth');
 
@@ -63,6 +64,23 @@ async function inicializar() {
     for (const g of grupos) {
       const existe = gruposCache.find((x) => x.chatId === g.id);
       if (!existe) gruposCache.push({ nombre: g.subject, chatId: g.id });
+    }
+  });
+
+  // Cachea contactos individuales a medida que llegan
+  socket.ev.on('contacts.upsert', (contacts) => {
+    for (const c of contacts) {
+      if (!c.id.endsWith('@s.whatsapp.net')) continue;
+      const nombre = c.name || c.notify || c.verifiedName || c.id.replace('@s.whatsapp.net', '');
+      contactosCache.set(c.id, nombre);
+    }
+  });
+
+  socket.ev.on('contacts.update', (updates) => {
+    for (const c of updates) {
+      if (!c.id || !c.id.endsWith('@s.whatsapp.net')) continue;
+      const nombre = c.name || c.notify || c.verifiedName || contactosCache.get(c.id) || c.id.replace('@s.whatsapp.net', '');
+      contactosCache.set(c.id, nombre);
     }
   });
 
@@ -124,16 +142,29 @@ async function enviarMensaje(chatId, texto, archivos = []) {
   }
 }
 
+function ordenarAlf(arr) {
+  return arr.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
+}
+
 async function listarGrupos() {
   if (!listo) throw new Error('WhatsApp no esta conectado');
   try {
     const chats = await socket.groupFetchAllParticipating();
     gruposCache = Object.values(chats).map((g) => ({ nombre: g.subject, chatId: g.id }));
   } catch (_) {}
-  return gruposCache;
+  return ordenarAlf([...gruposCache]);
+}
+
+function listarContactos() {
+  if (!listo) throw new Error('WhatsApp no esta conectado');
+  const lista = [];
+  for (const [chatId, nombre] of contactosCache) {
+    lista.push({ nombre, chatId });
+  }
+  return ordenarAlf(lista);
 }
 
 function getUltimoQR() { return ultimoQR; }
 function estaListo() { return listo; }
 
-module.exports = { inicializar, enviarMensaje, listarGrupos, estaListo, getUltimoQR };
+module.exports = { inicializar, enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR };

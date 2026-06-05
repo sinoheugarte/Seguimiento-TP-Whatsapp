@@ -341,7 +341,7 @@
             <div class="grupos-header" onclick="toggleGrupos('c-grupos-body','c-grupos-arrow')">
               <span class="gh-left">
                 <svg width="15" height="15" viewBox="0 0 32 32" fill="currentColor"><path d="M16 2C8.28 2 2 8.28 2 16c0 2.46.66 4.77 1.8 6.77L2 30l7.45-1.76A13.9 13.9 0 0016 30c7.72 0 14-6.28 14-14S23.72 2 16 2z"/></svg>
-                Seleccionar grupos
+                Grupos
               </span>
               <div style="display:flex;align-items:center;gap:8px">
                 <span id="c-grupos-cuenta" class="grupos-cuenta" style="display:none"></span>
@@ -354,6 +354,30 @@
               <div class="grupos-footer">
                 <button class="link-btn" onclick="seleccionarTodos('c-lista-grupos',true)">Seleccionar todos</button>
                 <button class="link-btn" onclick="seleccionarTodos('c-lista-grupos',false)">Limpiar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Contactos WhatsApp</label>
+          <div class="grupos-selector">
+            <div class="grupos-header" onclick="toggleGrupos('c-contactos-body','c-contactos-arrow')">
+              <span class="gh-left">
+                <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                Contactos individuales
+              </span>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span id="c-contactos-cuenta" class="grupos-cuenta" style="display:none"></span>
+                <svg id="c-contactos-arrow" class="grupos-arrow" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>
+              </div>
+            </div>
+            <div id="c-contactos-body" class="grupos-body">
+              <div class="grupos-search"><input type="text" placeholder="🔍  Buscar contacto..." oninput="filtrarGrupos(this,'c-lista-contactos')"></div>
+              <div id="c-lista-contactos" class="grupos-lista"></div>
+              <div class="grupos-footer">
+                <button class="link-btn" onclick="seleccionarTodos('c-lista-contactos',true)">Seleccionar todos</button>
+                <button class="link-btn" onclick="seleccionarTodos('c-lista-contactos',false)">Limpiar</button>
               </div>
             </div>
           </div>
@@ -393,8 +417,50 @@
       <div class="section-sub">Envía un mensaje con archivos adjuntos a un grupo específico.</div>
       <div class="card">
         <div class="field">
-          <label>Grupo destino</label>
-          <select id="wsp-grupo"></select>
+          <label>Grupos WhatsApp</label>
+          <div class="grupos-selector">
+            <div class="grupos-header" onclick="toggleGrupos('wsp-grupos-body','wsp-grupos-arrow')">
+              <span class="gh-left">
+                <svg width="15" height="15" viewBox="0 0 32 32" fill="currentColor"><path d="M16 2C8.28 2 2 8.28 2 16c0 2.46.66 4.77 1.8 6.77L2 30l7.45-1.76A13.9 13.9 0 0016 30c7.72 0 14-6.28 14-14S23.72 2 16 2z"/></svg>
+                Grupos
+              </span>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span id="wsp-grupos-cuenta" class="grupos-cuenta" style="display:none"></span>
+                <svg id="wsp-grupos-arrow" class="grupos-arrow" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>
+              </div>
+            </div>
+            <div id="wsp-grupos-body" class="grupos-body">
+              <div class="grupos-search"><input type="text" placeholder="🔍  Buscar grupo..." oninput="filtrarGrupos(this,'wsp-lista-grupos')"></div>
+              <div id="wsp-lista-grupos" class="grupos-lista"></div>
+              <div class="grupos-footer">
+                <button class="link-btn" onclick="seleccionarTodos('wsp-lista-grupos',true)">Seleccionar todos</button>
+                <button class="link-btn" onclick="seleccionarTodos('wsp-lista-grupos',false)">Limpiar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Contactos WhatsApp</label>
+          <div class="grupos-selector">
+            <div class="grupos-header" onclick="toggleGrupos('wsp-contactos-body','wsp-contactos-arrow')">
+              <span class="gh-left">
+                <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                Contactos individuales
+              </span>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span id="wsp-contactos-cuenta" class="grupos-cuenta" style="display:none"></span>
+                <svg id="wsp-contactos-arrow" class="grupos-arrow" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>
+              </div>
+            </div>
+            <div id="wsp-contactos-body" class="grupos-body">
+              <div class="grupos-search"><input type="text" placeholder="🔍  Buscar contacto..." oninput="filtrarGrupos(this,'wsp-lista-contactos')"></div>
+              <div id="wsp-lista-contactos" class="grupos-lista"></div>
+              <div class="grupos-footer">
+                <button class="link-btn" onclick="seleccionarTodos('wsp-lista-contactos',true)">Seleccionar todos</button>
+                <button class="link-btn" onclick="seleccionarTodos('wsp-lista-contactos',false)">Limpiar</button>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="field">
           <label>Mensaje</label>
@@ -601,26 +667,38 @@ function agregarArchivosAFormData(fd, inputId) {
 
 // ── Grupos ───────────────────────────────────────────────────────────────────
 
-function renderizarGrupos() {
-  const fuente = estado.grupos.length > 0
-    ? estado.grupos
-    : estado.gruposConfig.map(g => ({ nombre: g.nombre, chatId: g.chatId }));
-
-  const sel = document.getElementById('wsp-grupo');
-  const selActual = sel.value;
-  sel.innerHTML = fuente.map(g => `<option value="${g.chatId}">${g.nombre}</option>`).join('');
-  if (selActual) sel.value = selActual;
-
-  const marcados = new Set([...document.querySelectorAll('#c-lista-grupos input:checked')].map(i => i.value));
-  const lista = document.getElementById('c-lista-grupos');
-  lista.innerHTML = fuente.map(g =>
-    `<div class="grupo-item" data-nombre="${g.nombre.toLowerCase()}">
-      <input type="checkbox" id="cg-${g.chatId}" value="${g.chatId}" ${marcados.has(g.chatId)?'checked':''} onchange="actualizarCuenta()">
-      <label for="cg-${g.chatId}">${g.nombre}</label>
+function renderLista(listaId, fuente, prefijo, onchange) {
+  const marcados = new Set([...document.querySelectorAll(`#${listaId} input:checked`)].map(i => i.value));
+  document.getElementById(listaId).innerHTML = fuente.map(g =>
+    `<div class="grupo-item" data-nombre="${(g.nombre||'').toLowerCase()}">
+      <input type="checkbox" id="${prefijo}${g.chatId}" value="${g.chatId}" ${marcados.has(g.chatId)?'checked':''} onchange="${onchange}">
+      <label for="${prefijo}${g.chatId}">${g.nombre}</label>
     </div>`
   ).join('');
+}
+
+function renderizarGrupos() {
+  const grupos = estado.grupos.length > 0
+    ? estado.grupos
+    : estado.gruposConfig.map(g => ({ nombre: g.nombre, chatId: g.chatId }));
+  const contactos = estado.contactos || [];
+
+  // ── Combinado: grupos ──
+  renderLista('c-lista-grupos', grupos, 'cg-', 'actualizarCuenta()');
   actualizarCuenta();
 
+  // ── Combinado: contactos ──
+  renderLista('c-lista-contactos', contactos, 'cc-', 'actualizarCuentaContactos()');
+  actualizarCuentaContactos();
+
+  // ── Solo WhatsApp: grupos ──
+  renderLista('wsp-lista-grupos', grupos, 'wg-', 'actualizarCuentaWsp()');
+  actualizarCuentaWsp();
+
+  // ── Solo WhatsApp: contactos ──
+  renderLista('wsp-lista-contactos', contactos, 'wc-', 'actualizarCuentaWsp()');
+
+  // ── Email: grupos predefinidos ──
   const marcadosEmail = new Set([...document.querySelectorAll('#c-email-grupos input:checked')].map(i => i.id));
   document.getElementById('c-email-grupos').innerHTML = estado.destinatariosEmail.map(d =>
     `<div class="grupo-item">
@@ -628,6 +706,29 @@ function renderizarGrupos() {
       <label for="ce-${d.id}">${d.nombre} — <span style="color:var(--text2)">${d.direcciones.join(', ')}</span></label>
     </div>`
   ).join('');
+}
+
+function actualizarCuenta() {
+  const n = document.querySelectorAll('#c-lista-grupos input:checked').length;
+  const el = document.getElementById('c-grupos-cuenta');
+  el.textContent = n > 0 ? `${n} sel.` : '';
+  el.style.display = n > 0 ? '' : 'none';
+}
+
+function actualizarCuentaContactos() {
+  const n = document.querySelectorAll('#c-lista-contactos input:checked').length;
+  const el = document.getElementById('c-contactos-cuenta');
+  el.textContent = n > 0 ? `${n} sel.` : '';
+  el.style.display = n > 0 ? '' : 'none';
+}
+
+function actualizarCuentaWsp() {
+  const ng = document.querySelectorAll('#wsp-lista-grupos input:checked').length;
+  const nc = document.querySelectorAll('#wsp-lista-contactos input:checked').length;
+  const n = ng + nc;
+  const el = document.getElementById('wsp-grupos-cuenta');
+  el.textContent = n > 0 ? `${n} sel.` : '';
+  el.style.display = n > 0 ? '' : 'none';
 }
 
 function toggleGrupos(bodyId, arrowId) {
@@ -649,12 +750,6 @@ function seleccionarTodos(listaId, marcar) {
   actualizarCuenta();
 }
 
-function actualizarCuenta() {
-  const n = document.querySelectorAll('#c-lista-grupos input:checked').length;
-  const el = document.getElementById('c-grupos-cuenta');
-  el.textContent = n > 0 ? `${n} seleccionado${n>1?'s':''}` : '';
-  el.style.display = n > 0 ? '' : 'none';
-}
 
 // ── Botones con feedback ──────────────────────────────────────────────────────
 
@@ -697,15 +792,28 @@ function toast(ok, msg) {
 // ── Envíos ────────────────────────────────────────────────────────────────────
 
 async function enviarWhatsapp(btn) {
+  const destinatarios = [
+    ...[...document.querySelectorAll('#wsp-lista-grupos input:checked')].map(i => i.value),
+    ...[...document.querySelectorAll('#wsp-lista-contactos input:checked')].map(i => i.value)
+  ];
+  if (destinatarios.length === 0) { toast(false, 'Selecciona al menos un grupo o contacto'); return; }
+
   setBtnSending(btn, 'btn-accent');
-  const fd = new FormData();
-  fd.append('chatId', document.getElementById('wsp-grupo').value);
-  fd.append('mensaje', document.getElementById('wsp-msg').value);
-  agregarArchivosAFormData(fd, 'wsp-files-input');
-  const res = await fetch('/api/whatsapp/enviar', { method: 'POST', body: fd });
-  const data = await res.json();
-  res.ok ? setBtnSent(btn) : setBtnFailed(btn);
-  toast(res.ok, data.mensaje || data.error);
+  const mensaje = document.getElementById('wsp-msg').value;
+  let ok = true, errMsg = '';
+
+  for (const chatId of destinatarios) {
+    const fd = new FormData();
+    fd.append('chatId', chatId);
+    fd.append('mensaje', mensaje);
+    agregarArchivosAFormData(fd, 'wsp-files-input');
+    const res = await fetch('/api/whatsapp/enviar', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) { ok = false; errMsg = data.error; }
+  }
+
+  ok ? setBtnSent(btn) : setBtnFailed(btn);
+  toast(ok, ok ? `Enviado a ${destinatarios.length} destinatario${destinatarios.length>1?'s':''}` : errMsg);
 }
 
 async function enviarEmail(btn) {
@@ -726,7 +834,10 @@ async function enviarTodo(btn) {
   const fd = new FormData();
   fd.append('mensaje', document.getElementById('c-msg').value);
   fd.append('asunto', document.getElementById('c-asunto').value);
-  const chats = [...document.querySelectorAll('#c-lista-grupos input:checked')].map(i => i.value);
+  const chats = [
+    ...[...document.querySelectorAll('#c-lista-grupos input:checked')].map(i => i.value),
+    ...[...document.querySelectorAll('#c-lista-contactos input:checked')].map(i => i.value)
+  ];
   fd.append('chatsIds', JSON.stringify(chats));
   let emails = document.getElementById('c-emails').value.split(',').map(e => e.trim()).filter(Boolean);
   const emailsGrupos = [...document.querySelectorAll('#c-email-grupos input:checked')].flatMap(i => JSON.parse(i.dataset.emails));
@@ -850,17 +961,20 @@ const RESET_CONFIG = {
   combinado: {
     textos:    ['c-msg', 'c-emails', 'c-asunto'],
     archivos:  { inputId: 'c-files-input', listaId: 'c-archivos-lista' },
-    checks:    ['c-lista-grupos', 'c-email-grupos'],
+    checks:    ['c-lista-grupos', 'c-lista-contactos', 'c-email-grupos'],
+    cuentas:   ['actualizarCuenta', 'actualizarCuentaContactos'],
   },
   whatsapp: {
     textos:    ['wsp-msg'],
     archivos:  { inputId: 'wsp-files-input', listaId: 'wsp-archivos-lista' },
-    checks:    [],
+    checks:    ['wsp-lista-grupos', 'wsp-lista-contactos'],
+    cuentas:   ['actualizarCuentaWsp'],
   },
   email: {
     textos:    ['email-para', 'email-asunto', 'email-cuerpo'],
     archivos:  { inputId: 'email-files-input', listaId: 'email-archivos-lista' },
     checks:    [],
+    cuentas:   [],
   }
 };
 
@@ -886,7 +1000,7 @@ function resetPanel(panel) {
   cfg.checks.forEach(contenedorId => {
     document.querySelectorAll(`#${contenedorId} input[type=checkbox]`).forEach(cb => cb.checked = false);
   });
-  if (panel === 'combinado') actualizarCuenta();
+  (cfg.cuentas || []).forEach(fn => window[fn] && window[fn]());
 
   toast(true, 'Campos limpiados — listo para un nuevo mensaje');
 }

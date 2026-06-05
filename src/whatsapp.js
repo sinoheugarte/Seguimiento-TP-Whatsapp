@@ -67,6 +67,17 @@ async function inicializar() {
     }
   });
 
+  // Carga masiva de contactos al conectar (historial inicial de Baileys)
+  socket.ev.on('messaging-history.set', ({ contacts }) => {
+    if (!contacts) return;
+    for (const c of contacts) {
+      if (!c.id || !c.id.endsWith('@s.whatsapp.net')) continue;
+      const nombre = c.name || c.notify || c.verifiedName || c.id.replace('@s.whatsapp.net', '');
+      contactosCache.set(c.id, nombre);
+    }
+    log(`Contactos cargados desde historial: ${contactosCache.size}`);
+  });
+
   // Cachea contactos individuales a medida que llegan
   socket.ev.on('contacts.upsert', (contacts) => {
     for (const c of contacts) {

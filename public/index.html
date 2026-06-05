@@ -753,12 +753,13 @@ function renderLista(listaId, fuente, prefijo, onchange) {
     el.innerHTML = `<div class="lista-vacia">Sin datos — presiona ↺ para recargar</div>`;
     return;
   }
-  el.innerHTML = fuente.map(g =>
-    `<div class="grupo-item" data-nombre="${(g.nombre||'').toLowerCase().replace(/"/g,'&quot;')}">
+  el.innerHTML = fuente.map(g => {
+    const nombre = (g.nombre || '').trim() || '(Sin nombre)';
+    return `<div class="grupo-item" data-nombre="${nombre.toLowerCase().replace(/"/g,'&quot;')}">
       <input type="checkbox" id="${prefijo}${g.chatId}" value="${g.chatId}" ${marcados.has(g.chatId)?'checked':''} onchange="${onchange}">
-      <label for="${prefijo}${g.chatId}">${g.nombre}</label>
-    </div>`
-  ).join('');
+      <label for="${prefijo}${g.chatId}">${nombre}</label>
+    </div>`;
+  }).join('');
 }
 
 function renderizarGrupos() {

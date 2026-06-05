@@ -379,6 +379,10 @@
             <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
             Enviar a todo
           </button>
+          <button class="btn btn-ghost" onclick="resetPanel('combinado')" title="Limpiar todos los campos">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+            Nuevo mensaje
+          </button>
         </div>
       </div>
     </div>
@@ -409,6 +413,10 @@
           <button id="btn-enviar-wsp" class="btn btn-accent" onclick="enviarWhatsapp(this)">
             <svg width="16" height="16" viewBox="0 0 32 32" fill="currentColor"><path d="M16 2C8.28 2 2 8.28 2 16c0 2.46.66 4.77 1.8 6.77L2 30l7.45-1.76A13.9 13.9 0 0016 30c7.72 0 14-6.28 14-14S23.72 2 16 2z"/></svg>
             Enviar por WhatsApp
+          </button>
+          <button class="btn btn-ghost" onclick="resetPanel('whatsapp')" title="Limpiar todos los campos">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+            Nuevo mensaje
           </button>
         </div>
       </div>
@@ -444,6 +452,10 @@
           <button id="btn-enviar-email" class="btn btn-blue" onclick="enviarEmail(this)">
             <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
             Enviar correo
+          </button>
+          <button class="btn btn-ghost" onclick="resetPanel('email')" title="Limpiar todos los campos">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+            Nuevo mensaje
           </button>
         </div>
       </div>
@@ -551,7 +563,9 @@ function extIcon(nombre) {
 }
 
 function mostrarArchivos(input, listaId) {
-  archivosMap[input.id] = Array.from(input.files);
+  // Acumula en vez de reemplazar para que fotos y otros archivos coexistan
+  archivosMap[input.id] = [...(archivosMap[input.id] || []), ...Array.from(input.files)];
+  input.value = ''; // Resetea el input para permitir seleccionar los mismos archivos de nuevo
   renderChips(listaId, input.id);
 }
 
@@ -828,6 +842,53 @@ async function ejecutarCron(id) {
   const res = await fetch(`/api/programaciones/${id}/ejecutar`,{method:'POST'});
   const data = await res.json();
   toast(data.ok, data.ok ? 'Ejecutado correctamente' : 'Errores: '+data.errores.join(', '));
+}
+
+// ── Reset de paneles ─────────────────────────────────────────────────────────
+
+const RESET_CONFIG = {
+  combinado: {
+    textos:    ['c-msg', 'c-emails', 'c-asunto'],
+    archivos:  { inputId: 'c-files-input', listaId: 'c-archivos-lista' },
+    checks:    ['c-lista-grupos', 'c-email-grupos'],
+  },
+  whatsapp: {
+    textos:    ['wsp-msg'],
+    archivos:  { inputId: 'wsp-files-input', listaId: 'wsp-archivos-lista' },
+    checks:    [],
+  },
+  email: {
+    textos:    ['email-para', 'email-asunto', 'email-cuerpo'],
+    archivos:  { inputId: 'email-files-input', listaId: 'email-archivos-lista' },
+    checks:    [],
+  }
+};
+
+function resetPanel(panel) {
+  const cfg = RESET_CONFIG[panel];
+  if (!cfg) return;
+
+  // Limpiar campos de texto y textarea
+  cfg.textos.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+
+  // Limpiar archivos
+  const { inputId, listaId } = cfg.archivos;
+  archivosMap[inputId] = [];
+  const inputEl = document.getElementById(inputId);
+  if (inputEl) inputEl.value = '';
+  const listaEl = document.getElementById(listaId);
+  if (listaEl) listaEl.innerHTML = '';
+
+  // Desmarcar checkboxes
+  cfg.checks.forEach(contenedorId => {
+    document.querySelectorAll(`#${contenedorId} input[type=checkbox]`).forEach(cb => cb.checked = false);
+  });
+  if (panel === 'combinado') actualizarCuenta();
+
+  toast(true, 'Campos limpiados — listo para un nuevo mensaje');
 }
 
 // ── Estilos extra inline (spin) ──────────────────────────────────────────────

@@ -99,7 +99,8 @@
 
     /* ── Form elements ── */
     .field { margin-bottom: 16px; }
-    .field label { display: block; font-size: .78rem; font-weight: 600; color: var(--text2); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .5px; }
+    .field > label, .label-row label { display: block; font-size: .78rem; font-weight: 600; color: var(--text2); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .5px; }
+    .label-row label { margin-bottom: 0; }
     .field input[type=text], .field textarea, .field select, .field input[type=email] {
       width: 100%; background: var(--bg); border: 1px solid var(--border);
       border-radius: 8px; padding: 10px 14px; color: var(--text);
@@ -162,7 +163,7 @@
     .grupo-item { display: flex; align-items: center; gap: 10px; padding: 8px 14px; cursor: pointer; transition: var(--trans); }
     .grupo-item:hover { background: var(--surface2); }
     .grupo-item input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
-    .grupo-item label { font-size: .88rem; cursor: pointer; flex: 1; }
+    .grupo-item label { font-size: .88rem; cursor: pointer; flex: 1; color: var(--text); text-transform: none; margin-bottom: 0; display: inline; }
     .grupos-footer { display: flex; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--border); background: rgba(255,255,255,.02); }
     .link-btn { font-size: .76rem; color: var(--text2); background: none; border: none; cursor: pointer; padding: 3px 6px; border-radius: 4px; transition: var(--trans); }
     .link-btn:hover { color: var(--accent); background: rgba(0,200,150,.08); }
@@ -1165,7 +1166,7 @@ document.addEventListener('click', (e) => {
   if (!picker.contains(e.target) && !e.target.classList.contains('emoji-trigger')) cerrarEmoji();
 });
 
-initEmojiPicker();
+try { initEmojiPicker(); } catch(e) { console.warn('Emoji picker init error:', e); }
 
 cargarEstado();
 setInterval(cargarEstado, 15000);

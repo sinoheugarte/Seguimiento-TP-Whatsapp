@@ -149,18 +149,22 @@ async function mostrarQR() {
 function renderizarGrupos() {
   const fuente = estado.grupos.length > 0 ? estado.grupos : estado.gruposConfig.map(g => ({ nombre: g.nombre, chatId: g.chatId }));
 
-  // Select tab WhatsApp
+  // Select tab WhatsApp — preserva seleccion actual
   const sel = document.getElementById('wsp-grupo');
+  const selActual = sel.value;
   sel.innerHTML = fuente.map(g => `<option value="${g.chatId}">${g.nombre}</option>`).join('');
+  if (selActual) sel.value = selActual;
 
-  // Checkboxes tab combinado
+  // Checkboxes tab combinado — preserva selecciones actuales
+  const marcados = new Set([...document.querySelectorAll('#c-grupos input:checked')].map(i => i.value));
   document.getElementById('c-grupos').innerHTML = fuente.map(g =>
-    `<div class="grupo-check"><input type="checkbox" id="cg-${g.chatId}" value="${g.chatId}"><label for="cg-${g.chatId}" style="font-weight:normal;margin:0">${g.nombre}</label></div>`
+    `<div class="grupo-check"><input type="checkbox" id="cg-${g.chatId}" value="${g.chatId}" ${marcados.has(g.chatId) ? 'checked' : ''}><label for="cg-${g.chatId}" style="font-weight:normal;margin:0">${g.nombre}</label></div>`
   ).join('');
 
-  // Grupos de email predefinidos
+  // Grupos de email predefinidos — preserva selecciones actuales
+  const marcadosEmail = new Set([...document.querySelectorAll('#c-email-grupos input:checked')].map(i => i.id));
   document.getElementById('c-email-grupos').innerHTML = estado.destinatariosEmail.map(d =>
-    `<div class="grupo-check"><input type="checkbox" id="ce-${d.id}" data-emails='${JSON.stringify(d.direcciones)}'><label for="ce-${d.id}" style="font-weight:normal;margin:0">${d.nombre} (${d.direcciones.join(', ')})</label></div>`
+    `<div class="grupo-check"><input type="checkbox" id="ce-${d.id}" data-emails='${JSON.stringify(d.direcciones)}' ${marcadosEmail.has('ce-' + d.id) ? 'checked' : ''}><label for="ce-${d.id}" style="font-weight:normal;margin:0">${d.nombre} (${d.direcciones.join(', ')})</label></div>`
   ).join('');
 }
 

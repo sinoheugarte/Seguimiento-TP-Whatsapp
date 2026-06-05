@@ -167,6 +167,9 @@
     .grupos-footer { display: flex; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--border); background: rgba(255,255,255,.02); }
     .link-btn { font-size: .76rem; color: var(--text2); background: none; border: none; cursor: pointer; padding: 3px 6px; border-radius: 4px; transition: var(--trans); }
     .link-btn:hover { color: var(--accent); background: rgba(0,200,150,.08); }
+    .lista-vacia { padding: 14px 16px; font-size: .82rem; color: var(--text2); text-align: center; }
+    .reload-btn { background: none; border: none; cursor: pointer; color: var(--text2); padding: 4px; border-radius: 6px; transition: var(--trans); display: flex; align-items: center; }
+    .reload-btn:hover { color: var(--accent); background: rgba(0,200,150,.1); }
 
     /* ── Buttons ── */
     .btn {
@@ -396,8 +399,11 @@
                 <svg width="15" height="15" viewBox="0 0 32 32" fill="currentColor"><path d="M16 2C8.28 2 2 8.28 2 16c0 2.46.66 4.77 1.8 6.77L2 30l7.45-1.76A13.9 13.9 0 0016 30c7.72 0 14-6.28 14-14S23.72 2 16 2z"/></svg>
                 Grupos
               </span>
-              <div style="display:flex;align-items:center;gap:8px">
+              <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
                 <span id="c-grupos-cuenta" class="grupos-cuenta" style="display:none"></span>
+                <button class="reload-btn" onclick="cargarEstado()" title="Recargar grupos">
+                  <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+                </button>
                 <svg id="c-grupos-arrow" class="grupos-arrow" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>
               </div>
             </div>
@@ -477,8 +483,11 @@
                 <svg width="15" height="15" viewBox="0 0 32 32" fill="currentColor"><path d="M16 2C8.28 2 2 8.28 2 16c0 2.46.66 4.77 1.8 6.77L2 30l7.45-1.76A13.9 13.9 0 0016 30c7.72 0 14-6.28 14-14S23.72 2 16 2z"/></svg>
                 Grupos
               </span>
-              <div style="display:flex;align-items:center;gap:8px">
+              <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
                 <span id="wsp-grupos-cuenta" class="grupos-cuenta" style="display:none"></span>
+                <button class="reload-btn" onclick="cargarEstado()" title="Recargar grupos">
+                  <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+                </button>
                 <svg id="wsp-grupos-arrow" class="grupos-arrow" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>
               </div>
             </div>
@@ -638,18 +647,27 @@ const archivosMap = {};
 // ── Estado ──────────────────────────────────────────────────────────────────
 
 async function cargarEstado() {
+  let exito = false;
   try {
     const res = await fetch('/api/estado');
-    estado = await res.json();
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    estado = data;
+    exito = true;
     const pill = document.getElementById('wa-pill');
     const txt = document.getElementById('wa-text');
     pill.className = 'wa-pill ' + (estado.whatsapp ? 'ok' : 'err');
     txt.textContent = estado.whatsapp ? 'WhatsApp conectado' : 'WhatsApp desconectado';
     if (!estado.whatsapp) mostrarQR();
     else document.getElementById('qr-modal').style.display = 'none';
-    renderizarGrupos();
-    renderizarProgramaciones();
-  } catch(_) {}
+  } catch(err) {
+    console.error('[Estado] Error al cargar:', err);
+    const pill = document.getElementById('wa-pill');
+    if (pill) { pill.className = 'wa-pill err'; document.getElementById('wa-text').textContent = 'Servidor no disponible'; }
+  }
+  // Siempre renderizar con los datos disponibles (reales o vacíos)
+  renderizarGrupos();
+  renderizarProgramaciones();
 }
 
 async function mostrarQR() {
@@ -729,8 +747,14 @@ function agregarArchivosAFormData(fd, inputId) {
 
 function renderLista(listaId, fuente, prefijo, onchange) {
   const marcados = new Set([...document.querySelectorAll(`#${listaId} input:checked`)].map(i => i.value));
-  document.getElementById(listaId).innerHTML = fuente.map(g =>
-    `<div class="grupo-item" data-nombre="${(g.nombre||'').toLowerCase()}">
+  const el = document.getElementById(listaId);
+  if (!el) return;
+  if (!fuente || fuente.length === 0) {
+    el.innerHTML = `<div class="lista-vacia">Sin datos — presiona ↺ para recargar</div>`;
+    return;
+  }
+  el.innerHTML = fuente.map(g =>
+    `<div class="grupo-item" data-nombre="${(g.nombre||'').toLowerCase().replace(/"/g,'&quot;')}">
       <input type="checkbox" id="${prefijo}${g.chatId}" value="${g.chatId}" ${marcados.has(g.chatId)?'checked':''} onchange="${onchange}">
       <label for="${prefijo}${g.chatId}">${g.nombre}</label>
     </div>`

@@ -11,19 +11,45 @@ let gruposCache = [];
 let contactosCache = new Map(); // chatId → nombre
 
 const AUTH_DIR = path.resolve('.baileys_auth');
+const CONTACTS_FILE = path.resolve('.baileys_auth', 'contacts-cache.json');
 
 function log(msg) {
   console.log('[WhatsApp]', msg);
+}
+
+// Carga el cache de contactos desde disco al iniciar
+function cargarContactosDescoCache() {
+  try {
+    if (fs.existsSync(CONTACTS_FILE)) {
+      const data = JSON.parse(fs.readFileSync(CONTACTS_FILE, 'utf8'));
+      contactosCache = new Map(Object.entries(data));
+      log(`Contactos cargados desde cache: ${contactosCache.size}`);
+    }
+  } catch (_) {}
+}
+
+// Guarda el cache en disco cuando se actualiza
+let _saveTimer = null;
+function guardarContactosCache() {
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => {
+    try {
+      const obj = Object.fromEntries(contactosCache);
+      fs.writeFileSync(CONTACTS_FILE, JSON.stringify(obj), 'utf8');
+    } catch (_) {}
+  }, 2000); // debounce 2s para no escribir en cada evento
 }
 
 function procesarContacto(c) {
   if (!c.id || !c.id.endsWith('@s.whatsapp.net')) return;
   const nombre = c.name || c.notify || c.verifiedName || c.id.replace('@s.whatsapp.net', '');
   contactosCache.set(c.id, nombre);
+  guardarContactosCache();
 }
 
 async function inicializar() {
   if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR, { recursive: true });
+  cargarContactosDescoCache();
 
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
   const { version } = await fetchLatestBaileysVersion();
@@ -82,6 +108,7 @@ async function inicializar() {
       const nombre = c.name || c.id.replace('@s.whatsapp.net', '');
       contactosCache.set(c.id, nombre);
     }
+    guardarContactosCache();
     log(`Contactos tras historial: ${contactosCache.size}`);
   });
 

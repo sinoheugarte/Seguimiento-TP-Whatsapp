@@ -5,10 +5,10 @@ const fs = require('fs');
 const P = require('pino');
 
 let socket = null;
+let store = null;
 let listo = false;
 let ultimoQR = null;
 let gruposCache = [];
-let contactosCache = new Map(); // chatId → nombre
 
 const AUTH_DIR = path.resolve('.baileys_auth');
 
@@ -22,6 +22,9 @@ async function inicializar() {
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
   const { version } = await fetchLatestBaileysVersion();
 
+  // El store guarda automáticamente contactos, chats y grupos al recibir eventos
+  store = makeInMemoryStore({ logger: P({ level: 'silent' }) });
+
   socket = makeWASocket({
     version,
     auth: state,
@@ -29,6 +32,9 @@ async function inicializar() {
     printQRInTerminal: false,
     browser: ['TP-Whatsapp', 'Chrome', '1.0']
   });
+
+  // Vincular el store al socket: recibe todos los eventos automáticamente
+  store.bind(socket.ev);
 
   socket.ev.on('creds.update', saveCreds);
 
@@ -64,34 +70,6 @@ async function inicializar() {
     for (const g of grupos) {
       const existe = gruposCache.find((x) => x.chatId === g.id);
       if (!existe) gruposCache.push({ nombre: g.subject, chatId: g.id });
-    }
-  });
-
-  // Carga masiva de contactos al conectar (historial inicial de Baileys)
-  socket.ev.on('messaging-history.set', ({ contacts }) => {
-    if (!contacts) return;
-    for (const c of contacts) {
-      if (!c.id || !c.id.endsWith('@s.whatsapp.net')) continue;
-      const nombre = c.name || c.notify || c.verifiedName || c.id.replace('@s.whatsapp.net', '');
-      contactosCache.set(c.id, nombre);
-    }
-    log(`Contactos cargados desde historial: ${contactosCache.size}`);
-  });
-
-  // Cachea contactos individuales a medida que llegan
-  socket.ev.on('contacts.upsert', (contacts) => {
-    for (const c of contacts) {
-      if (!c.id.endsWith('@s.whatsapp.net')) continue;
-      const nombre = c.name || c.notify || c.verifiedName || c.id.replace('@s.whatsapp.net', '');
-      contactosCache.set(c.id, nombre);
-    }
-  });
-
-  socket.ev.on('contacts.update', (updates) => {
-    for (const c of updates) {
-      if (!c.id || !c.id.endsWith('@s.whatsapp.net')) continue;
-      const nombre = c.name || c.notify || c.verifiedName || contactosCache.get(c.id) || c.id.replace('@s.whatsapp.net', '');
-      contactosCache.set(c.id, nombre);
     }
   });
 
@@ -154,24 +132,47 @@ async function enviarMensaje(chatId, texto, archivos = []) {
 }
 
 function ordenarAlf(arr) {
-  return arr.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
+  return arr.sort((a, b) => (a.nombre||'').localeCompare(b.nombre||'', 'es', { sensitivity: 'base' }));
 }
 
 async function listarGrupos() {
   if (!listo) throw new Error('WhatsApp no esta conectado');
   try {
     const chats = await socket.groupFetchAllParticipating();
-    gruposCache = Object.values(chats).map((g) => ({ nombre: g.subject, chatId: g.id }));
+    gruposCache = Object.values(chats).map((g) => ({ nombre: g.subject || '', chatId: g.id }));
   } catch (_) {}
   return ordenarAlf([...gruposCache]);
 }
 
 function listarContactos() {
   if (!listo) throw new Error('WhatsApp no esta conectado');
+
+  // Leer del store de Baileys que se actualiza automáticamente con eventos
+  const contactsMap = store?.contacts || {};
+  const chatsMap = store?.chats?.all ? store.chats.all() : [];
+
+  const resultado = new Map();
+
+  // Fuente 1: contactos del store (tiene nombres de la libreta de direcciones)
+  for (const [id, c] of Object.entries(contactsMap)) {
+    if (!id.endsWith('@s.whatsapp.net')) continue;
+    const nombre = c.name || c.notify || c.verifiedName || id.replace('@s.whatsapp.net', '');
+    resultado.set(id, nombre);
+  }
+
+  // Fuente 2: chats individuales del store (cubre conversaciones recientes)
+  for (const chat of chatsMap) {
+    if (!chat.id || !chat.id.endsWith('@s.whatsapp.net')) continue;
+    if (resultado.has(chat.id)) continue;
+    const nombre = chat.name || chat.id.replace('@s.whatsapp.net', '');
+    resultado.set(chat.id, nombre);
+  }
+
   const lista = [];
-  for (const [chatId, nombre] of contactosCache) {
+  for (const [chatId, nombre] of resultado) {
     lista.push({ nombre, chatId });
   }
+  log(`Contactos disponibles: ${lista.length}`);
   return ordenarAlf(lista);
 }
 

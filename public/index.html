@@ -1,226 +1,517 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Seguimiento TP — Panel de Mensajes</title>
+  <title>Seguimiento TP — Mensajería</title>
   <style>
+    :root {
+      --bg: #0f1923;
+      --surface: #162030;
+      --surface2: #1e2d3d;
+      --border: rgba(255,255,255,.07);
+      --accent: #00c896;
+      --accent2: #0099ff;
+      --danger: #ff4757;
+      --warn: #ffa502;
+      --text: #e8f0fe;
+      --text2: #8899aa;
+      --radius: 14px;
+      --shadow: 0 8px 32px rgba(0,0,0,.4);
+      --trans: .22s cubic-bezier(.4,0,.2,1);
+    }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; color: #222; }
-    header { background: #075e54; color: #fff; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
-    header h1 { font-size: 1.2rem; font-weight: 600; }
-    .badge { padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
-    .badge.ok { background: #25d366; color: #fff; }
-    .badge.err { background: #e53e3e; color: #fff; }
-    main { max-width: 960px; margin: 24px auto; padding: 0 16px; }
-    .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 2px solid #ddd; flex-wrap: wrap; }
-    .tab { padding: 10px 20px; cursor: pointer; font-weight: 500; border-radius: 6px 6px 0 0; color: #555; background: #e8eaed; border: none; font-size: 0.95rem; }
-    .tab.active { background: #fff; color: #075e54; border-bottom: 2px solid #fff; margin-bottom: -2px; }
-    .panel { display: none; background: #fff; border-radius: 0 8px 8px 8px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
-    .panel.active { display: block; }
-    label { display: block; font-size: 0.85rem; font-weight: 600; color: #444; margin-bottom: 4px; margin-top: 14px; }
-    input[type=text], input[type=email], textarea, select { width: 100%; padding: 9px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.95rem; }
-    textarea { resize: vertical; min-height: 90px; }
-    button.btn { margin-top: 18px; padding: 10px 22px; border: none; border-radius: 6px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: background .2s, transform .1s; }
-    button.btn:active { transform: scale(.97); }
-    .btn-primary { background: #075e54; color: #fff; }
-    .btn-primary:hover { background: #064e45; }
-    .btn-secondary { background: #25d366; color: #fff; }
-    .btn-secondary:hover { background: #1da850; }
-    .btn-enviado { background: #276749 !important; color: #fff !important; }
-    .btn-error { background: #c53030 !important; color: #fff !important; }
-    .btn-cargando { background: #999 !important; color: #fff !important; cursor: wait !important; }
-    .btn-run { background: #3182ce; color: #fff; font-size: 0.85rem; padding: 6px 14px; margin: 0; }
-    .btn-run:hover { background: #2b6cb0; }
-    .btn-danger { background: #e53e3e; color: #fff; font-size: 0.85rem; padding: 6px 14px; margin: 0; }
-    .btn-sm { font-size: 0.82rem; padding: 5px 12px; margin-top: 0; }
-    .alerta { margin-top: 14px; padding: 12px 16px; border-radius: 6px; font-size: 0.9rem; display: none; font-weight: 500; }
-    .alerta.ok { background: #c6f6d5; color: #276749; border: 1px solid #9ae6b4; }
-    .alerta.err { background: #fed7d7; color: #742a2a; border: 1px solid #fc8181; }
-    .hint { font-size: 0.8rem; color: #888; margin-top: 3px; }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
 
-    /* ── Selector de grupos tipo dropdown ── */
-    .grupos-selector { border: 1px solid #ccc; border-radius: 6px; overflow: hidden; margin-top: 6px; }
-    .grupos-header { display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; background: #f7f7f7; cursor: pointer; user-select: none; font-size: 0.9rem; }
-    .grupos-header:hover { background: #efefef; }
-    .grupos-header .cuenta { font-size: 0.8rem; color: #075e54; font-weight: 600; }
-    .grupos-body { display: none; border-top: 1px solid #eee; }
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, #0a1f2e 0%, #0d2d40 50%, #0a2518 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 0 28px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(12px);
+    }
+    .logo-icon { width: 36px; height: 36px; background: linear-gradient(135deg,#00c896,#00a876); border-radius: 10px; display:flex;align-items:center;justify-content:center;flex-shrink:0; }
+    header h1 { font-size: 1.05rem; font-weight: 700; letter-spacing: .3px; background: linear-gradient(90deg,#fff,#a0d4c8); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+    .header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    .wa-pill {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 12px; border-radius: 20px; font-size: .78rem; font-weight: 600;
+      transition: var(--trans);
+    }
+    .wa-pill.ok { background: rgba(0,200,150,.15); color: #00c896; border: 1px solid rgba(0,200,150,.3); }
+    .wa-pill.err { background: rgba(255,71,87,.12); color: #ff6b7a; border: 1px solid rgba(255,71,87,.25); }
+    .wa-dot { width: 7px; height: 7px; border-radius: 50%; }
+    .wa-pill.ok .wa-dot { background: #00c896; animation: pulse-green 2s infinite; }
+    .wa-pill.err .wa-dot { background: #ff6b7a; }
+    @keyframes pulse-green { 0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,.5)} 50%{box-shadow:0 0 0 5px rgba(0,200,150,0)} }
+
+    /* ── Layout ── */
+    .layout { display: flex; min-height: calc(100vh - 64px); }
+
+    /* ── Sidebar ── */
+    aside {
+      width: 220px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 20px 12px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 11px 14px; border-radius: 10px; cursor: pointer;
+      font-size: .88rem; font-weight: 500; color: var(--text2);
+      border: none; background: transparent; width: 100%; text-align: left;
+      transition: var(--trans);
+    }
+    .nav-item:hover { background: var(--surface2); color: var(--text); }
+    .nav-item.active { background: linear-gradient(135deg,rgba(0,200,150,.18),rgba(0,153,255,.12)); color: var(--accent); border: 1px solid rgba(0,200,150,.2); }
+    .nav-item svg { flex-shrink: 0; }
+    .nav-divider { height: 1px; background: var(--border); margin: 8px 4px; }
+
+    /* ── Main content ── */
+    main { flex: 1; padding: 28px; overflow-y: auto; }
+    .panel { display: none; animation: fadeIn .25s ease; }
+    .panel.active { display: block; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow);
+    }
+    .card-title { font-size: 1rem; font-weight: 700; margin-bottom: 4px; }
+    .card-desc { font-size: .82rem; color: var(--text2); margin-bottom: 20px; }
+
+    /* ── Form elements ── */
+    .field { margin-bottom: 16px; }
+    .field label { display: block; font-size: .78rem; font-weight: 600; color: var(--text2); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .5px; }
+    .field input[type=text], .field textarea, .field select, .field input[type=email] {
+      width: 100%; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 14px; color: var(--text);
+      font-size: .9rem; font-family: inherit; transition: var(--trans);
+    }
+    .field input:focus, .field textarea:focus, .field select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,200,150,.12); }
+    .field textarea { resize: vertical; min-height: 100px; }
+    .field select { cursor: pointer; }
+    .field select option { background: var(--surface2); }
+
+    /* ── File upload zone ── */
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: var(--trans);
+      background: var(--bg);
+      position: relative;
+    }
+    .upload-zone:hover, .upload-zone.dragover { border-color: var(--accent); background: rgba(0,200,150,.04); }
+    .upload-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+    .upload-zone-icon { color: var(--text2); margin-bottom: 8px; }
+    .upload-zone p { font-size: .83rem; color: var(--text2); }
+    .upload-zone span { color: var(--accent); font-weight: 600; }
+    .archivos-lista { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .archivo-chip {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 6px; padding: 5px 10px; font-size: .78rem;
+      animation: chipIn .18s ease;
+    }
+    @keyframes chipIn { from{opacity:0;transform:scale(.9)} to{opacity:1;transform:scale(1)} }
+    .archivo-chip .chip-icon { width: 20px; height: 20px; flex-shrink: 0; }
+    .archivo-chip .chip-name { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+    .archivo-chip .chip-remove { cursor: pointer; color: var(--text2); padding: 0 2px; font-size: 1rem; line-height: 1; transition: var(--trans); }
+    .archivo-chip .chip-remove:hover { color: var(--danger); }
+
+    /* ── Grupos selector ── */
+    .grupos-selector { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    .grupos-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 11px 14px; background: var(--bg); cursor: pointer;
+      user-select: none; font-size: .88rem; transition: var(--trans);
+    }
+    .grupos-header:hover { background: var(--surface2); }
+    .grupos-header .gh-left { display: flex; align-items: center; gap: 8px; color: var(--text2); }
+    .grupos-cuenta { background: rgba(0,200,150,.15); color: var(--accent); font-size: .74rem; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
+    .grupos-arrow { color: var(--text2); transition: transform var(--trans); }
+    .grupos-arrow.open { transform: rotate(180deg); }
+    .grupos-body { display: none; border-top: 1px solid var(--border); }
     .grupos-body.abierto { display: block; }
-    .grupos-search { padding: 8px 10px; border-bottom: 1px solid #eee; }
-    .grupos-search input { border: 1px solid #ddd; border-radius: 4px; padding: 6px 10px; font-size: 0.88rem; width: 100%; }
-    .grupos-lista { max-height: 220px; overflow-y: auto; padding: 4px 0; }
-    .grupo-check { display: flex; align-items: center; gap: 8px; padding: 6px 12px; cursor: pointer; }
-    .grupo-check:hover { background: #f0faf5; }
-    .grupo-check input[type=checkbox] { width: 16px; height: 16px; accent-color: #075e54; cursor: pointer; }
-    .grupo-check label { font-weight: normal; margin: 0; cursor: pointer; font-size: 0.9rem; color: #333; }
-    .grupos-acciones { display: flex; gap: 8px; padding: 6px 12px; border-top: 1px solid #eee; background: #fafafa; }
-    .grupos-acciones button { font-size: 0.78rem; padding: 3px 10px; margin: 0; border: 1px solid #ccc; background: #fff; border-radius: 4px; cursor: pointer; }
-    .grupos-acciones button:hover { background: #f0f0f0; }
+    .grupos-search { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+    .grupos-search input { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 7px 12px; font-size: .85rem; width: 100%; color: var(--text); }
+    .grupos-search input:focus { outline: none; border-color: var(--accent); }
+    .grupos-lista { max-height: 240px; overflow-y: auto; padding: 4px 0; }
+    .grupos-lista::-webkit-scrollbar { width: 4px; }
+    .grupos-lista::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 4px; }
+    .grupo-item { display: flex; align-items: center; gap: 10px; padding: 8px 14px; cursor: pointer; transition: var(--trans); }
+    .grupo-item:hover { background: var(--surface2); }
+    .grupo-item input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+    .grupo-item label { font-size: .88rem; cursor: pointer; flex: 1; }
+    .grupos-footer { display: flex; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--border); background: rgba(255,255,255,.02); }
+    .link-btn { font-size: .76rem; color: var(--text2); background: none; border: none; cursor: pointer; padding: 3px 6px; border-radius: 4px; transition: var(--trans); }
+    .link-btn:hover { color: var(--accent); background: rgba(0,200,150,.08); }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 11px 22px; border: none; border-radius: 9px;
+      font-size: .9rem; font-weight: 600; cursor: pointer;
+      transition: var(--trans); font-family: inherit;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn-accent { background: linear-gradient(135deg, #00c896, #00a876); color: #fff; box-shadow: 0 4px 16px rgba(0,200,150,.3); }
+    .btn-accent:hover { box-shadow: 0 6px 20px rgba(0,200,150,.45); transform: translateY(-1px); }
+    .btn-blue { background: linear-gradient(135deg,#0099ff,#0077dd); color: #fff; box-shadow: 0 4px 16px rgba(0,153,255,.3); }
+    .btn-blue:hover { box-shadow: 0 6px 20px rgba(0,153,255,.45); transform: translateY(-1px); }
+    .btn-ghost { background: var(--surface2); color: var(--text2); border: 1px solid var(--border); }
+    .btn-ghost:hover { color: var(--text); border-color: rgba(255,255,255,.15); }
+    .btn-danger-ghost { background: transparent; color: var(--danger); border: 1px solid rgba(255,71,87,.3); }
+    .btn-danger-ghost:hover { background: rgba(255,71,87,.1); }
+    .btn-sm { padding: 7px 14px; font-size: .8rem; border-radius: 7px; }
+    .btn-icon { padding: 8px; border-radius: 8px; }
+    /* Estados envío */
+    .btn-sending { background: #2a3a4a !important; color: var(--text2) !important; cursor: wait !important; box-shadow: none !important; transform: none !important; }
+    .btn-sent { background: linear-gradient(135deg,#00a876,#007a56) !important; color: #fff !important; box-shadow: 0 4px 16px rgba(0,168,118,.35) !important; }
+    .btn-failed { background: linear-gradient(135deg,#d63031,#b02020) !important; color: #fff !important; box-shadow: 0 4px 16px rgba(214,48,49,.35) !important; }
+
+    /* ── Toast / Alerta ── */
+    .toast-area { position: fixed; bottom: 24px; right: 24px; z-index: 200; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+    .toast {
+      display: flex; align-items: center; gap: 10px;
+      padding: 13px 18px; border-radius: 10px; font-size: .88rem; font-weight: 500;
+      box-shadow: 0 8px 24px rgba(0,0,0,.5);
+      animation: toastIn .3s ease forwards;
+      pointer-events: auto; max-width: 380px;
+      border: 1px solid transparent;
+    }
+    .toast.ok { background: #0d2e20; color: #4ade80; border-color: rgba(74,222,128,.25); }
+    .toast.err { background: #2d1010; color: #f87171; border-color: rgba(248,113,113,.25); }
+    @keyframes toastIn { from{opacity:0;transform:translateX(24px)} to{opacity:1;transform:translateX(0)} }
+    @keyframes toastOut { to{opacity:0;transform:translateX(24px)} }
 
     /* ── Programaciones ── */
-    .prog-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 18px; margin-bottom: 12px; }
-    .prog-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-    .prog-info h3 { font-size: 0.95rem; font-weight: 600; }
-    .prog-info p { font-size: 0.82rem; color: #666; margin-top: 3px; }
-    .prog-acciones { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
-    .prog-form { margin-top: 14px; border-top: 1px solid #eee; padding-top: 14px; display: none; }
-    .prog-form.visible { display: block; }
-    .prog-form input, .prog-form textarea, .prog-form select { margin-bottom: 8px; }
-    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
-    .dot.on { background: #25d366; }
-    .dot.off { background: #ccc; }
-    .nueva-prog-btn { margin-top: 0; margin-bottom: 16px; }
-    .toggle-activo { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 0.88rem; }
-    .toggle-activo input { width: auto; }
-    hr { border: none; border-top: 1px solid #eee; margin: 16px 0; }
+    .prog-grid { display: flex; flex-direction: column; gap: 12px; }
+    .prog-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 18px;
+      transition: var(--trans);
+    }
+    .prog-card:hover { border-color: rgba(255,255,255,.12); }
+    .prog-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .prog-badge { display: inline-flex; align-items: center; gap: 5px; font-size: .72rem; font-weight: 700; padding: 3px 9px; border-radius: 8px; margin-bottom: 6px; }
+    .prog-badge.on { background: rgba(0,200,150,.12); color: var(--accent); }
+    .prog-badge.off { background: rgba(255,255,255,.06); color: var(--text2); }
+    .prog-badge-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .prog-badge.on .prog-badge-dot { background: var(--accent); }
+    .prog-badge.off .prog-badge-dot { background: var(--text2); }
+    .prog-title { font-size: .95rem; font-weight: 600; }
+    .prog-meta { font-size: .78rem; color: var(--text2); margin-top: 4px; }
+    .prog-msg { font-size: .82rem; color: #667788; margin-top: 5px; font-style: italic; }
+    .prog-actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .prog-edit-form { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 14px; display: none; }
+    .prog-edit-form.open { display: block; }
+    .form-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media(max-width:600px){ .form-row2{grid-template-columns:1fr} aside{display:none} }
+    .checkbox-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+    .checkbox-row input { width: 16px; height: 16px; accent-color: var(--accent); }
+    .checkbox-row label { font-size: .85rem; color: var(--text2); cursor: pointer; }
+    .new-prog-form {
+      background: rgba(0,153,255,.06);
+      border: 1px solid rgba(0,153,255,.2);
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 16px;
+      display: none;
+    }
+    .new-prog-form.open { display: block; }
+    .new-prog-title { font-size: .9rem; font-weight: 700; color: var(--accent2); margin-bottom: 14px; }
+
+    /* ── Misc ── */
+    .hint { font-size: .75rem; color: var(--text2); margin-top: 4px; }
+    .section-title { font-size: 1.3rem; font-weight: 700; margin-bottom: 6px; }
+    .section-sub { font-size: .85rem; color: var(--text2); margin-bottom: 22px; }
+    .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; align-items: center; }
   </style>
 </head>
 <body>
-<header>
-  <svg width="28" height="28" viewBox="0 0 32 32" fill="white"><path d="M16 2C8.28 2 2 8.28 2 16c0 2.46.66 4.77 1.8 6.77L2 30l7.45-1.76A13.9 13.9 0 0016 30c7.72 0 14-6.28 14-14S23.72 2 16 2zm0 25.4c-2.2 0-4.26-.6-6.03-1.63l-.43-.25-4.42 1.04 1.07-4.3-.28-.45A11.37 11.37 0 014.6 16C4.6 9.7 9.7 4.6 16 4.6S27.4 9.7 27.4 16 22.3 27.4 16 27.4zm6.23-8.54c-.34-.17-2.02-.99-2.33-1.1-.31-.12-.54-.17-.77.17-.22.34-.87 1.1-1.07 1.33-.2.22-.39.25-.73.08-.34-.17-1.44-.53-2.74-1.69-1.01-.9-1.7-2.01-1.9-2.35-.2-.34-.02-.52.15-.69l.5-.55c.16-.18.22-.34.33-.56.11-.22.06-.42-.03-.59-.08-.17-.77-1.85-1.05-2.53-.28-.67-.56-.58-.77-.59l-.65-.01c-.23 0-.59.08-.9.42-.3.34-1.17 1.14-1.17 2.78s1.2 3.23 1.37 3.45c.17.22 2.36 3.6 5.72 5.05.8.34 1.42.55 1.9.7.8.25 1.53.22 2.1.13.64-.1 2.02-.82 2.3-1.62.28-.8.28-1.48.2-1.62-.08-.14-.3-.22-.64-.39z"/></svg>
-  <h1>Panel de Mensajes — Seguimiento TP</h1>
-  <span id="wa-badge" class="badge err" style="margin-left:auto">WhatsApp ✗</span>
-</header>
 
-<!-- Modal QR -->
-<div id="qr-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center;">
-  <div style="background:#fff;border-radius:12px;padding:32px;text-align:center;max-width:340px;width:90%">
-    <h2 style="margin-bottom:8px;font-size:1.1rem">Escanea el QR</h2>
-    <p style="color:#555;font-size:.85rem;margin-bottom:16px">Abre WhatsApp → Dispositivos vinculados → Vincular dispositivo</p>
-    <img id="qr-img" src="/api/qr" style="width:240px;height:240px;border:1px solid #eee;border-radius:8px"/>
-    <p style="color:#888;font-size:.78rem;margin-top:12px">El QR se refresca automaticamente</p>
-    <button class="btn btn-primary" style="margin-top:14px;width:100%" onclick="document.getElementById('qr-modal').style.display='none'">Cerrar</button>
+<!-- Toast area -->
+<div class="toast-area" id="toast-area"></div>
+
+<!-- QR Modal -->
+<div id="qr-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;align-items:center;justify-content:center;backdrop-filter:blur(4px)">
+  <div style="background:#162030;border:1px solid rgba(255,255,255,.1);border-radius:18px;padding:32px;text-align:center;max-width:340px;width:90%;box-shadow:0 24px 64px rgba(0,0,0,.6)">
+    <div style="width:48px;height:48px;background:linear-gradient(135deg,#00c896,#00a876);border-radius:14px;margin:0 auto 14px;display:flex;align-items:center;justify-content:center">
+      <svg width="26" height="26" viewBox="0 0 32 32" fill="white"><path d="M16 2C8.28 2 2 8.28 2 16c0 2.46.66 4.77 1.8 6.77L2 30l7.45-1.76A13.9 13.9 0 0016 30c7.72 0 14-6.28 14-14S23.72 2 16 2z"/></svg>
+    </div>
+    <h2 style="font-size:1.1rem;font-weight:700;margin-bottom:6px">Vincular WhatsApp</h2>
+    <p style="color:#8899aa;font-size:.82rem;margin-bottom:18px">Abre WhatsApp → Dispositivos vinculados → Vincular dispositivo</p>
+    <div style="background:#fff;border-radius:12px;padding:10px;display:inline-block">
+      <img id="qr-img" src="/api/qr" style="width:220px;height:220px;display:block"/>
+    </div>
+    <p style="color:#556677;font-size:.74rem;margin-top:10px">Se refresca automaticamente</p>
+    <button class="btn btn-ghost" style="margin-top:14px;width:100%" onclick="document.getElementById('qr-modal').style.display='none'">Cerrar</button>
   </div>
 </div>
 
-<main>
-  <div class="tabs">
-    <button class="tab active" onclick="mostrarTab('combinado',this)">Envio Combinado</button>
-    <button class="tab" onclick="mostrarTab('whatsapp',this)">Solo WhatsApp</button>
-    <button class="tab" onclick="mostrarTab('email',this)">Solo Email</button>
-    <button class="tab" onclick="mostrarTab('programaciones',this)">Programaciones</button>
+<!-- Header -->
+<header>
+  <div class="logo-icon">
+    <svg width="20" height="20" viewBox="0 0 32 32" fill="white"><path d="M16 2C8.28 2 2 8.28 2 16c0 2.46.66 4.77 1.8 6.77L2 30l7.45-1.76A13.9 13.9 0 0016 30c7.72 0 14-6.28 14-14S23.72 2 16 2zm0 25.4c-2.2 0-4.26-.6-6.03-1.63l-.43-.25-4.42 1.04 1.07-4.3-.28-.45A11.37 11.37 0 014.6 16C4.6 9.7 9.7 4.6 16 4.6S27.4 9.7 27.4 16 22.3 27.4 16 27.4zm6.23-8.54c-.34-.17-2.02-.99-2.33-1.1-.31-.12-.54-.17-.77.17-.22.34-.87 1.1-1.07 1.33-.2.22-.39.25-.73.08-.34-.17-1.44-.53-2.74-1.69-1.01-.9-1.7-2.01-1.9-2.35-.2-.34-.02-.52.15-.69l.5-.55c.16-.18.22-.34.33-.56.11-.22.06-.42-.03-.59-.08-.17-.77-1.85-1.05-2.53-.28-.67-.56-.58-.77-.59l-.65-.01c-.23 0-.59.08-.9.42-.3.34-1.17 1.14-1.17 2.78s1.2 3.23 1.37 3.45c.17.22 2.36 3.6 5.72 5.05.8.34 1.42.55 1.9.7.8.25 1.53.22 2.1.13.64-.1 2.02-.82 2.3-1.62.28-.8.28-1.48.2-1.62-.08-.14-.3-.22-.64-.39z"/></svg>
   </div>
-
-  <!-- COMBINADO -->
-  <div id="tab-combinado" class="panel active">
-    <p style="color:#555;margin-bottom:8px">Envia el mismo mensaje a grupos de WhatsApp y correos al mismo tiempo.</p>
-    <label>Mensaje</label>
-    <textarea id="c-msg" placeholder="Escribe el mensaje aqui..."></textarea>
-    <label>Foto adjunta (opcional)</label>
-    <input type="file" id="c-foto" accept="image/*">
-
-    <label>Grupos WhatsApp</label>
-    <div class="grupos-selector">
-      <div class="grupos-header" onclick="toggleGrupos('c-grupos-body')">
-        <span>Seleccionar grupos</span>
-        <span id="c-grupos-cuenta" class="cuenta"></span>
-        <span>▾</span>
-      </div>
-      <div id="c-grupos-body" class="grupos-body">
-        <div class="grupos-search"><input type="text" placeholder="Buscar grupo..." oninput="filtrarGrupos(this,'c-lista-grupos')"></div>
-        <div id="c-lista-grupos" class="grupos-lista"></div>
-        <div class="grupos-acciones">
-          <button onclick="seleccionarTodos('c-lista-grupos',true)">Seleccionar todos</button>
-          <button onclick="seleccionarTodos('c-lista-grupos',false)">Deseleccionar todos</button>
-        </div>
-      </div>
+  <h1>Seguimiento TP — Mensajería</h1>
+  <div class="header-right">
+    <div id="wa-pill" class="wa-pill err">
+      <span class="wa-dot"></span>
+      <span id="wa-text">WhatsApp desconectado</span>
     </div>
-
-    <label>Correos destinatarios (separados por coma)</label>
-    <input id="c-emails" type="text" placeholder="gerente@empresa.com, ventas@empresa.com">
-
-    <label>Grupos de correo predefinidos</label>
-    <div id="c-email-grupos"></div>
-
-    <label>Asunto del correo</label>
-    <input id="c-asunto" type="text" placeholder="(Opcional — si esta vacio usa el inicio del mensaje)">
-
-    <button id="btn-enviar-todo" class="btn btn-secondary" onclick="enviarTodo(this)">Enviar a todo</button>
-    <div id="todo-estado" class="alerta"></div>
   </div>
+</header>
 
-  <!-- WHATSAPP -->
-  <div id="tab-whatsapp" class="panel">
-    <label>Selecciona el grupo</label>
-    <select id="wsp-grupo"></select>
-    <label>Mensaje</label>
-    <textarea id="wsp-msg" placeholder="Escribe el mensaje..."></textarea>
-    <label>Foto adjunta (opcional)</label>
-    <input type="file" id="wsp-foto" accept="image/*">
-    <button id="btn-enviar-wsp" class="btn btn-primary" onclick="enviarWhatsapp(this)">Enviar por WhatsApp</button>
-    <div id="wsp-estado" class="alerta"></div>
-  </div>
+<div class="layout">
+  <!-- Sidebar -->
+  <aside>
+    <button class="nav-item active" onclick="mostrarPanel('combinado',this)" id="nav-combinado">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+      Envío Combinado
+    </button>
+    <button class="nav-item" onclick="mostrarPanel('whatsapp',this)" id="nav-whatsapp">
+      <svg width="18" height="18" viewBox="0 0 32 32" fill="currentColor"><path d="M16 2C8.28 2 2 8.28 2 16c0 2.46.66 4.77 1.8 6.77L2 30l7.45-1.76A13.9 13.9 0 0016 30c7.72 0 14-6.28 14-14S23.72 2 16 2z"/></svg>
+      Solo WhatsApp
+    </button>
+    <button class="nav-item" onclick="mostrarPanel('email',this)" id="nav-email">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+      Solo Email
+    </button>
+    <div class="nav-divider"></div>
+    <button class="nav-item" onclick="mostrarPanel('programaciones',this)" id="nav-programaciones">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+      Programaciones
+    </button>
+  </aside>
 
-  <!-- EMAIL -->
-  <div id="tab-email" class="panel">
-    <label>Para (separados por coma)</label>
-    <input id="email-para" type="text" placeholder="correo1@empresa.com, correo2@empresa.com">
-    <label>Asunto</label>
-    <input id="email-asunto" type="text" placeholder="Asunto del correo">
-    <label>Mensaje</label>
-    <textarea id="email-cuerpo" placeholder="Cuerpo del correo..."></textarea>
-    <label>Foto adjunta (opcional)</label>
-    <input type="file" id="email-foto" accept="image/*">
-    <button id="btn-enviar-email" class="btn btn-primary" onclick="enviarEmail(this)">Enviar correo</button>
-    <div id="email-estado" class="alerta"></div>
-  </div>
+  <!-- Main -->
+  <main>
 
-  <!-- PROGRAMACIONES -->
-  <div id="tab-programaciones" class="panel">
-    <button class="btn btn-primary nueva-prog-btn" onclick="mostrarFormNueva()">+ Nueva programacion</button>
+    <!-- ══ COMBINADO ══ -->
+    <div id="panel-combinado" class="panel active">
+      <div class="section-title">Envío Combinado</div>
+      <div class="section-sub">Envía el mismo mensaje a grupos de WhatsApp y correos electrónicos al mismo tiempo.</div>
 
-    <!-- Formulario nueva programacion -->
-    <div id="form-nueva-prog" class="prog-form" style="border:1px solid #bee3f8;border-radius:8px;padding:16px;background:#ebf8ff;margin-bottom:16px;">
-      <strong style="font-size:.95rem">Nueva programacion</strong>
-      <label>Descripcion</label>
-      <input type="text" id="np-desc" placeholder="Ej: Reporte semanal cada lunes">
-      <div class="form-row">
-        <div>
-          <label>Expresion Cron</label>
-          <input type="text" id="np-cron" placeholder="0 9 * * 1">
-          <p class="hint">Lunes 9am: 0 9 * * 1 | Diario 8am: 0 8 * * *</p>
+      <div class="card">
+        <div class="field">
+          <label>Mensaje</label>
+          <textarea id="c-msg" placeholder="Escribe el mensaje aquí..."></textarea>
         </div>
-        <div>
+
+        <div class="field">
+          <label>Archivos adjuntos</label>
+          <div class="upload-zone" id="c-upload-zone" ondragover="dragOver(event,this)" ondragleave="dragLeave(this)" ondrop="drop(event,'c-files-input','c-archivos-lista')">
+            <input type="file" id="c-files-input" multiple accept="image/*,.pdf,.xlsx,.xls,.docx,.doc,.pptx,.ppt,.zip,.rar,.txt,.csv" onchange="mostrarArchivos(this,'c-archivos-lista')">
+            <div class="upload-zone-icon">
+              <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </div>
+            <p>Arrastra archivos aquí o <span>haz clic para seleccionar</span></p>
+            <p style="margin-top:4px;font-size:.74rem">Imágenes · PDF · Excel · Word · PowerPoint · ZIP</p>
+          </div>
+          <div id="c-archivos-lista" class="archivos-lista"></div>
+        </div>
+
+        <div class="field">
+          <label>Grupos WhatsApp</label>
+          <div class="grupos-selector">
+            <div class="grupos-header" onclick="toggleGrupos('c-grupos-body','c-grupos-arrow')">
+              <span class="gh-left">
+                <svg width="15" height="15" viewBox="0 0 32 32" fill="currentColor"><path d="M16 2C8.28 2 2 8.28 2 16c0 2.46.66 4.77 1.8 6.77L2 30l7.45-1.76A13.9 13.9 0 0016 30c7.72 0 14-6.28 14-14S23.72 2 16 2z"/></svg>
+                Seleccionar grupos
+              </span>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span id="c-grupos-cuenta" class="grupos-cuenta" style="display:none"></span>
+                <svg id="c-grupos-arrow" class="grupos-arrow" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>
+              </div>
+            </div>
+            <div id="c-grupos-body" class="grupos-body">
+              <div class="grupos-search"><input type="text" placeholder="🔍  Buscar grupo..." oninput="filtrarGrupos(this,'c-lista-grupos')"></div>
+              <div id="c-lista-grupos" class="grupos-lista"></div>
+              <div class="grupos-footer">
+                <button class="link-btn" onclick="seleccionarTodos('c-lista-grupos',true)">Seleccionar todos</button>
+                <button class="link-btn" onclick="seleccionarTodos('c-lista-grupos',false)">Limpiar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Correos destinatarios</label>
+          <input type="text" id="c-emails" placeholder="gerente@empresa.com, ventas@empresa.com">
+        </div>
+
+        <div class="field">
+          <label>Grupos de correo predefinidos</label>
+          <div id="c-email-grupos"></div>
+        </div>
+
+        <div class="field">
           <label>Asunto del correo</label>
-          <input type="text" id="np-asunto" placeholder="Reporte {{fecha}}">
+          <input type="text" id="c-asunto" placeholder="Opcional — si está vacío usa el inicio del mensaje">
         </div>
-      </div>
-      <label>Mensaje</label>
-      <textarea id="np-msg" placeholder="Texto del mensaje automatico..." style="min-height:70px"></textarea>
-      <label>Grupos WhatsApp destino (IDs separados por coma)</label>
-      <input type="text" id="np-wa" placeholder="grupo-ventas, grupo-operaciones">
-      <label>Grupos email destino (IDs separados por coma)</label>
-      <input type="text" id="np-email" placeholder="gerencia, ventas">
-      <div class="toggle-activo">
-        <input type="checkbox" id="np-activo" checked>
-        <label for="np-activo">Activar inmediatamente</label>
-      </div>
-      <div style="display:flex;gap:8px;margin-top:14px">
-        <button class="btn btn-primary btn-sm" onclick="crearProgramacion()">Guardar</button>
-        <button class="btn btn-sm" style="background:#eee;color:#333;margin-top:0" onclick="cerrarFormNueva()">Cancelar</button>
+
+        <div class="btn-row">
+          <button id="btn-enviar-todo" class="btn btn-accent" onclick="enviarTodo(this)">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+            Enviar a todo
+          </button>
+        </div>
       </div>
     </div>
 
-    <div id="prog-lista"></div>
-    <div id="cron-estado" class="alerta"></div>
-  </div>
-</main>
+    <!-- ══ WHATSAPP ══ -->
+    <div id="panel-whatsapp" class="panel">
+      <div class="section-title">Solo WhatsApp</div>
+      <div class="section-sub">Envía un mensaje con archivos adjuntos a un grupo específico.</div>
+      <div class="card">
+        <div class="field">
+          <label>Grupo destino</label>
+          <select id="wsp-grupo"></select>
+        </div>
+        <div class="field">
+          <label>Mensaje</label>
+          <textarea id="wsp-msg" placeholder="Escribe el mensaje..."></textarea>
+        </div>
+        <div class="field">
+          <label>Archivos adjuntos</label>
+          <div class="upload-zone" ondragover="dragOver(event,this)" ondragleave="dragLeave(this)" ondrop="drop(event,'wsp-files-input','wsp-archivos-lista')">
+            <input type="file" id="wsp-files-input" multiple accept="image/*,.pdf,.xlsx,.xls,.docx,.doc,.pptx,.ppt,.zip,.rar,.txt,.csv" onchange="mostrarArchivos(this,'wsp-archivos-lista')">
+            <div class="upload-zone-icon"><svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+            <p>Arrastra archivos o <span>selecciona</span></p>
+          </div>
+          <div id="wsp-archivos-lista" class="archivos-lista"></div>
+        </div>
+        <div class="btn-row">
+          <button id="btn-enviar-wsp" class="btn btn-accent" onclick="enviarWhatsapp(this)">
+            <svg width="16" height="16" viewBox="0 0 32 32" fill="currentColor"><path d="M16 2C8.28 2 2 8.28 2 16c0 2.46.66 4.77 1.8 6.77L2 30l7.45-1.76A13.9 13.9 0 0016 30c7.72 0 14-6.28 14-14S23.72 2 16 2z"/></svg>
+            Enviar por WhatsApp
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ EMAIL ══ -->
+    <div id="panel-email" class="panel">
+      <div class="section-title">Solo Email</div>
+      <div class="section-sub">Envía un correo con archivos adjuntos a los destinatarios que indiques.</div>
+      <div class="card">
+        <div class="field">
+          <label>Para</label>
+          <input type="text" id="email-para" placeholder="correo1@empresa.com, correo2@empresa.com">
+        </div>
+        <div class="field">
+          <label>Asunto</label>
+          <input type="text" id="email-asunto" placeholder="Asunto del correo">
+        </div>
+        <div class="field">
+          <label>Mensaje</label>
+          <textarea id="email-cuerpo" placeholder="Cuerpo del correo..."></textarea>
+        </div>
+        <div class="field">
+          <label>Archivos adjuntos</label>
+          <div class="upload-zone" ondragover="dragOver(event,this)" ondragleave="dragLeave(this)" ondrop="drop(event,'email-files-input','email-archivos-lista')">
+            <input type="file" id="email-files-input" multiple accept="image/*,.pdf,.xlsx,.xls,.docx,.doc,.pptx,.ppt,.zip,.rar,.txt,.csv" onchange="mostrarArchivos(this,'email-archivos-lista')">
+            <div class="upload-zone-icon"><svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+            <p>Arrastra archivos o <span>selecciona</span></p>
+          </div>
+          <div id="email-archivos-lista" class="archivos-lista"></div>
+        </div>
+        <div class="btn-row">
+          <button id="btn-enviar-email" class="btn btn-blue" onclick="enviarEmail(this)">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            Enviar correo
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ PROGRAMACIONES ══ -->
+    <div id="panel-programaciones" class="panel">
+      <div class="section-title">Programaciones</div>
+      <div class="section-sub">Configura envíos automáticos programados con expresiones cron.</div>
+
+      <button class="btn btn-blue" style="margin-bottom:16px" onclick="toggleNuevaProg()">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Nueva programación
+      </button>
+
+      <!-- Form nueva -->
+      <div id="form-nueva-prog" class="new-prog-form">
+        <div class="new-prog-title">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+          Nueva programación automática
+        </div>
+        <div class="form-row2">
+          <div class="field"><label>Descripción</label><input type="text" id="np-desc" placeholder="Ej: Reporte semanal lunes"></div>
+          <div class="field">
+            <label>Expresión Cron</label>
+            <input type="text" id="np-cron" placeholder="0 9 * * 1">
+            <p class="hint">Lunes 9am: 0 9 * * 1 &nbsp;|&nbsp; Diario 8am: 0 8 * * *</p>
+          </div>
+        </div>
+        <div class="field"><label>Mensaje</label><textarea id="np-msg" placeholder="Texto del mensaje automático..." style="min-height:70px"></textarea></div>
+        <div class="form-row2">
+          <div class="field"><label>Grupos WhatsApp (IDs)</label><input type="text" id="np-wa" placeholder="grupo-ventas, grupo-ops"><p class="hint">IDs del config.json</p></div>
+          <div class="field"><label>Grupos Email (IDs)</label><input type="text" id="np-email" placeholder="gerencia, ventas"></div>
+        </div>
+        <div class="field"><label>Asunto email</label><input type="text" id="np-asunto" placeholder="Reporte {{fecha}}"></div>
+        <div class="checkbox-row"><input type="checkbox" id="np-activo" checked><label for="np-activo">Activar inmediatamente</label></div>
+        <div class="btn-row">
+          <button class="btn btn-blue btn-sm" onclick="crearProgramacion()">Guardar</button>
+          <button class="btn btn-ghost btn-sm" onclick="toggleNuevaProg()">Cancelar</button>
+        </div>
+      </div>
+
+      <div id="prog-grid" class="prog-grid"></div>
+      <div id="prog-toast-area" style="margin-top:12px"></div>
+    </div>
+
+  </main>
+</div>
 
 <script>
 let estado = { grupos: [], gruposConfig: [], destinatariosEmail: [], programaciones: [] };
+const archivosMap = {};
 
 // ── Estado ──────────────────────────────────────────────────────────────────
 
 async function cargarEstado() {
-  const res = await fetch('/api/estado');
-  estado = await res.json();
-  document.getElementById('wa-badge').textContent = estado.whatsapp ? 'WhatsApp ✓' : 'WhatsApp ✗';
-  document.getElementById('wa-badge').className = 'badge ' + (estado.whatsapp ? 'ok' : 'err');
-  if (!estado.whatsapp) mostrarQR();
-  else document.getElementById('qr-modal').style.display = 'none';
-  renderizarGrupos();
-  renderizarProgramaciones();
+  try {
+    const res = await fetch('/api/estado');
+    estado = await res.json();
+    const pill = document.getElementById('wa-pill');
+    const txt = document.getElementById('wa-text');
+    pill.className = 'wa-pill ' + (estado.whatsapp ? 'ok' : 'err');
+    txt.textContent = estado.whatsapp ? 'WhatsApp conectado' : 'WhatsApp desconectado';
+    if (!estado.whatsapp) mostrarQR();
+    else document.getElementById('qr-modal').style.display = 'none';
+    renderizarGrupos();
+    renderizarProgramaciones();
+  } catch(_) {}
 }
 
 async function mostrarQR() {
@@ -231,6 +522,69 @@ async function mostrarQR() {
   }
 }
 
+// ── Navegación ───────────────────────────────────────────────────────────────
+
+function mostrarPanel(id, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── Archivos ─────────────────────────────────────────────────────────────────
+
+const EXT_ICONS = {
+  pdf:  '#ff4757', xlsx: '#1d6f42', xls: '#1d6f42', docx: '#2b5797', doc: '#2b5797',
+  pptx: '#c43e1c', ppt: '#c43e1c', zip: '#f39c12', rar: '#f39c12',
+  jpg: '#00b894', jpeg: '#00b894', png: '#00b894', gif: '#00b894', webp: '#00b894',
+  txt: '#636e72', csv: '#00b894'
+};
+
+function extIcon(nombre) {
+  const ext = nombre.split('.').pop().toLowerCase();
+  const color = EXT_ICONS[ext] || '#8899aa';
+  const label = ext.toUpperCase().slice(0,4);
+  return `<svg class="chip-icon" viewBox="0 0 28 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect width="28" height="32" rx="4" fill="${color}" opacity=".15"/>
+    <text x="14" y="21" text-anchor="middle" font-size="9" font-weight="700" fill="${color}" font-family="monospace">${label}</text>
+  </svg>`;
+}
+
+function mostrarArchivos(input, listaId) {
+  archivosMap[input.id] = Array.from(input.files);
+  renderChips(listaId, input.id);
+}
+
+function renderChips(listaId, inputId) {
+  const lista = document.getElementById(listaId);
+  const files = archivosMap[inputId] || [];
+  lista.innerHTML = files.map((f, i) =>
+    `<div class="archivo-chip">
+      ${extIcon(f.name)}
+      <span class="chip-name" title="${f.name}">${f.name}</span>
+      <span class="chip-remove" onclick="quitarArchivo('${inputId}','${listaId}',${i})">×</span>
+    </div>`
+  ).join('');
+}
+
+function quitarArchivo(inputId, listaId, idx) {
+  archivosMap[inputId] = (archivosMap[inputId] || []).filter((_,i) => i !== idx);
+  renderChips(listaId, inputId);
+}
+
+function dragOver(e, zone) { e.preventDefault(); zone.classList.add('dragover'); }
+function dragLeave(zone) { zone.classList.remove('dragover'); }
+function drop(e, inputId, listaId) {
+  e.preventDefault();
+  document.getElementById(inputId).closest('.upload-zone').classList.remove('dragover');
+  archivosMap[inputId] = [...(archivosMap[inputId] || []), ...Array.from(e.dataTransfer.files)];
+  renderChips(listaId, inputId);
+}
+
+function agregarArchivosAFormData(fd, inputId) {
+  (archivosMap[inputId] || []).forEach(f => fd.append('archivos', f));
+}
+
 // ── Grupos ───────────────────────────────────────────────────────────────────
 
 function renderizarGrupos() {
@@ -238,47 +592,45 @@ function renderizarGrupos() {
     ? estado.grupos
     : estado.gruposConfig.map(g => ({ nombre: g.nombre, chatId: g.chatId }));
 
-  // Select tab WhatsApp
   const sel = document.getElementById('wsp-grupo');
   const selActual = sel.value;
   sel.innerHTML = fuente.map(g => `<option value="${g.chatId}">${g.nombre}</option>`).join('');
   if (selActual) sel.value = selActual;
 
-  // Checkboxes combinado — preserva seleccionados
   const marcados = new Set([...document.querySelectorAll('#c-lista-grupos input:checked')].map(i => i.value));
   const lista = document.getElementById('c-lista-grupos');
   lista.innerHTML = fuente.map(g =>
-    `<div class="grupo-check" data-nombre="${g.nombre.toLowerCase()}">
-      <input type="checkbox" id="cg-${g.chatId}" value="${g.chatId}" ${marcados.has(g.chatId) ? 'checked' : ''} onchange="actualizarCuenta()">
+    `<div class="grupo-item" data-nombre="${g.nombre.toLowerCase()}">
+      <input type="checkbox" id="cg-${g.chatId}" value="${g.chatId}" ${marcados.has(g.chatId)?'checked':''} onchange="actualizarCuenta()">
       <label for="cg-${g.chatId}">${g.nombre}</label>
     </div>`
   ).join('');
   actualizarCuenta();
 
-  // Email grupos predefinidos
   const marcadosEmail = new Set([...document.querySelectorAll('#c-email-grupos input:checked')].map(i => i.id));
   document.getElementById('c-email-grupos').innerHTML = estado.destinatariosEmail.map(d =>
-    `<div class="grupo-check">
-      <input type="checkbox" id="ce-${d.id}" data-emails='${JSON.stringify(d.direcciones)}' ${marcadosEmail.has('ce-' + d.id) ? 'checked' : ''}>
-      <label for="ce-${d.id}" style="font-weight:normal;margin:0">${d.nombre} (${d.direcciones.join(', ')})</label>
+    `<div class="grupo-item">
+      <input type="checkbox" id="ce-${d.id}" data-emails='${JSON.stringify(d.direcciones)}' ${marcadosEmail.has('ce-'+d.id)?'checked':''}>
+      <label for="ce-${d.id}">${d.nombre} — <span style="color:var(--text2)">${d.direcciones.join(', ')}</span></label>
     </div>`
   ).join('');
 }
 
-function toggleGrupos(id) {
-  document.getElementById(id).classList.toggle('abierto');
+function toggleGrupos(bodyId, arrowId) {
+  document.getElementById(bodyId).classList.toggle('abierto');
+  document.getElementById(arrowId).classList.toggle('open');
 }
 
 function filtrarGrupos(input, listaId) {
   const q = input.value.toLowerCase();
-  document.querySelectorAll(`#${listaId} .grupo-check`).forEach(el => {
+  document.querySelectorAll(`#${listaId} .grupo-item`).forEach(el => {
     el.style.display = el.dataset.nombre.includes(q) ? '' : 'none';
   });
 }
 
 function seleccionarTodos(listaId, marcar) {
   document.querySelectorAll(`#${listaId} input[type=checkbox]`).forEach(cb => {
-    if (cb.closest('.grupo-check').style.display !== 'none') cb.checked = marcar;
+    if (cb.closest('.grupo-item').style.display !== 'none') cb.checked = marcar;
   });
   actualizarCuenta();
 }
@@ -286,178 +638,151 @@ function seleccionarTodos(listaId, marcar) {
 function actualizarCuenta() {
   const n = document.querySelectorAll('#c-lista-grupos input:checked').length;
   const el = document.getElementById('c-grupos-cuenta');
-  el.textContent = n > 0 ? `${n} seleccionado${n > 1 ? 's' : ''}` : '';
+  el.textContent = n > 0 ? `${n} seleccionado${n>1?'s':''}` : '';
+  el.style.display = n > 0 ? '' : 'none';
 }
 
-// ── Boton con feedback ────────────────────────────────────────────────────────
+// ── Botones con feedback ──────────────────────────────────────────────────────
 
-function setBtnEstado(btn, estado) {
-  btn.disabled = estado !== 'normal';
-  btn.classList.remove('btn-secondary', 'btn-primary', 'btn-enviado', 'btn-error', 'btn-cargando');
-  if (estado === 'cargando') { btn.classList.add('btn-cargando'); btn.textContent = 'Enviando...'; }
-  else if (estado === 'ok')   { btn.classList.add('btn-enviado');  btn.textContent = '✓ Enviado'; }
-  else if (estado === 'err')  { btn.classList.add('btn-error');    btn.textContent = '✗ Error al enviar'; }
-  else {
-    const orig = btn.dataset.orig || btn.textContent;
-    btn.dataset.orig = orig;
-    btn.classList.add(btn.dataset.clase || 'btn-secondary');
-    btn.textContent = orig;
-  }
+function setBtnSending(btn, claseOriginal) {
+  btn._clase = claseOriginal;
+  btn._html = btn.innerHTML;
+  btn.disabled = true;
+  btn.className = `btn btn-sending ${btn.className.includes('btn-sm') ? 'btn-sm' : ''}`;
+  btn.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="animation:spin 1s linear infinite"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Enviando...`;
+}
+function setBtnSent(btn) {
+  btn.disabled = false;
+  btn.className = `btn btn-sent ${btn.className.includes('btn-sm') ? 'btn-sm' : ''}`;
+  btn.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20,6 9,17 4,12"/></svg> Enviado`;
+  setTimeout(() => resetBtn(btn), 4500);
+}
+function setBtnFailed(btn) {
+  btn.disabled = false;
+  btn.className = `btn btn-failed ${btn.className.includes('btn-sm') ? 'btn-sm' : ''}`;
+  btn.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Error`;
+  setTimeout(() => resetBtn(btn), 4500);
+}
+function resetBtn(btn) {
+  btn.disabled = false;
+  btn.className = `btn ${btn._clase || ''}`;
+  btn.innerHTML = btn._html || 'Enviar';
 }
 
-function resetBtn(btn, ms = 4000) {
-  setTimeout(() => setBtnEstado(btn, 'normal'), ms);
+// ── Toast ────────────────────────────────────────────────────────────────────
+
+function toast(ok, msg) {
+  const area = document.getElementById('toast-area');
+  const el = document.createElement('div');
+  el.className = 'toast ' + (ok ? 'ok' : 'err');
+  el.innerHTML = `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">${ok ? '<polyline points="20,6 9,17 4,12"/>' : '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>'}</svg>${msg}`;
+  area.appendChild(el);
+  setTimeout(() => { el.style.animation = 'toastOut .3s ease forwards'; setTimeout(() => el.remove(), 300); }, 4000);
 }
 
-// ── Envios ────────────────────────────────────────────────────────────────────
-
-function mostrarAlerta(id, ok, msg) {
-  const el = document.getElementById(id);
-  el.className = 'alerta ' + (ok ? 'ok' : 'err');
-  el.textContent = msg;
-  el.style.display = 'block';
-  setTimeout(() => el.style.display = 'none', 6000);
-}
+// ── Envíos ────────────────────────────────────────────────────────────────────
 
 async function enviarWhatsapp(btn) {
-  btn.dataset.clase = 'btn-primary';
-  setBtnEstado(btn, 'cargando');
+  setBtnSending(btn, 'btn-accent');
   const fd = new FormData();
   fd.append('chatId', document.getElementById('wsp-grupo').value);
   fd.append('mensaje', document.getElementById('wsp-msg').value);
-  const foto = document.getElementById('wsp-foto').files[0];
-  if (foto) fd.append('foto', foto);
+  agregarArchivosAFormData(fd, 'wsp-files-input');
   const res = await fetch('/api/whatsapp/enviar', { method: 'POST', body: fd });
   const data = await res.json();
-  setBtnEstado(btn, res.ok ? 'ok' : 'err');
-  mostrarAlerta('wsp-estado', res.ok, data.mensaje || data.error);
-  resetBtn(btn);
+  res.ok ? setBtnSent(btn) : setBtnFailed(btn);
+  toast(res.ok, data.mensaje || data.error);
 }
 
 async function enviarEmail(btn) {
-  btn.dataset.clase = 'btn-primary';
-  setBtnEstado(btn, 'cargando');
+  setBtnSending(btn, 'btn-blue');
   const fd = new FormData();
   fd.append('para', document.getElementById('email-para').value);
   fd.append('asunto', document.getElementById('email-asunto').value);
   fd.append('cuerpo', document.getElementById('email-cuerpo').value);
-  const foto = document.getElementById('email-foto').files[0];
-  if (foto) fd.append('foto', foto);
+  agregarArchivosAFormData(fd, 'email-files-input');
   const res = await fetch('/api/email/enviar', { method: 'POST', body: fd });
   const data = await res.json();
-  setBtnEstado(btn, res.ok ? 'ok' : 'err');
-  mostrarAlerta('email-estado', res.ok, data.mensaje || data.error);
-  resetBtn(btn);
+  res.ok ? setBtnSent(btn) : setBtnFailed(btn);
+  toast(res.ok, data.mensaje || data.error);
 }
 
 async function enviarTodo(btn) {
-  btn.dataset.clase = 'btn-secondary';
-  setBtnEstado(btn, 'cargando');
-
+  setBtnSending(btn, 'btn-accent');
   const fd = new FormData();
   fd.append('mensaje', document.getElementById('c-msg').value);
   fd.append('asunto', document.getElementById('c-asunto').value);
-
   const chats = [...document.querySelectorAll('#c-lista-grupos input:checked')].map(i => i.value);
   fd.append('chatsIds', JSON.stringify(chats));
-
   let emails = document.getElementById('c-emails').value.split(',').map(e => e.trim()).filter(Boolean);
   const emailsGrupos = [...document.querySelectorAll('#c-email-grupos input:checked')].flatMap(i => JSON.parse(i.dataset.emails));
   emails = [...new Set([...emails, ...emailsGrupos])];
   fd.append('emailsPara', JSON.stringify(emails));
-
-  const foto = document.getElementById('c-foto').files[0];
-  if (foto) fd.append('foto', foto);
-
+  agregarArchivosAFormData(fd, 'c-files-input');
   const res = await fetch('/api/enviar-todo', { method: 'POST', body: fd });
   const data = await res.json();
   const ok = data.errores.length === 0;
-
-  setBtnEstado(btn, ok ? 'ok' : 'err');
-
-  let msg = '';
+  ok ? setBtnSent(btn) : setBtnFailed(btn);
   if (ok) {
-    const wa = data.whatsapp.length;
-    const em = data.email.length;
-    msg = `Enviado correctamente — ${wa} grupo${wa !== 1 ? 's' : ''} de WhatsApp${em > 0 ? ` y ${em} correo${em !== 1 ? 's' : ''}` : ''}`;
+    const wa = data.whatsapp.length, em = data.email.length;
+    toast(true, `Enviado — ${wa} grupo${wa!==1?'s':''} WhatsApp${em>0?` · ${em} correo${em!==1?'s':''}`:''}`)
   } else {
-    msg = 'Errores: ' + data.errores.map(e => e.error).join(', ');
+    toast(false, 'Errores: ' + data.errores.map(e => e.error).join(', '));
   }
-  mostrarAlerta('todo-estado', ok, msg);
-  resetBtn(btn, 5000);
 }
 
 // ── Programaciones ────────────────────────────────────────────────────────────
 
 function renderizarProgramaciones() {
-  const lista = document.getElementById('prog-lista');
+  const grid = document.getElementById('prog-grid');
   if (!estado.programaciones.length) {
-    lista.innerHTML = '<p style="color:#888">No hay programaciones. Crea la primera con el boton de arriba.</p>';
+    grid.innerHTML = '<p style="color:var(--text2);font-size:.88rem">No hay programaciones. Crea la primera con el botón de arriba.</p>';
     return;
   }
-  lista.innerHTML = estado.programaciones.map(p => `
+  grid.innerHTML = estado.programaciones.map(p => `
     <div class="prog-card" id="card-${p.id}">
-      <div class="prog-card-header">
-        <div class="prog-info">
-          <h3><span class="dot ${p.activo ? 'on' : 'off'}"></span>${p.descripcion}</h3>
-          <p>Cron: <code>${p.cron}</code> &nbsp;|&nbsp; WA: ${p.destinatariosWhatsapp?.join(', ') || '-'} &nbsp;|&nbsp; Email: ${p.destinatariosEmail?.join(', ') || '-'}</p>
-          <p style="margin-top:4px;color:#555;font-size:.82rem">${p.mensaje ? '"' + p.mensaje.slice(0,80) + (p.mensaje.length > 80 ? '...' : '') + '"' : ''}</p>
+      <div class="prog-top">
+        <div>
+          <div class="prog-badge ${p.activo?'on':'off'}"><span class="prog-badge-dot"></span>${p.activo?'ACTIVO':'INACTIVO'}</div>
+          <div class="prog-title">${p.descripcion}</div>
+          <div class="prog-meta"><code style="background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-size:.76rem">${p.cron}</code> &nbsp;·&nbsp; WA: ${p.destinatariosWhatsapp?.join(', ')||'—'} &nbsp;·&nbsp; Email: ${p.destinatariosEmail?.join(', ')||'—'}</div>
+          ${p.mensaje?`<div class="prog-msg">"${p.mensaje.slice(0,90)}${p.mensaje.length>90?'…':''}"</div>`:''}
         </div>
-        <div class="prog-acciones">
-          <button class="btn btn-run btn-sm" onclick="ejecutarCron('${p.id}')">▶ Ejecutar</button>
-          <button class="btn btn-sm" style="background:#edf2f7;color:#333;margin-top:0" onclick="toggleEditarProg('${p.id}')">✏ Editar</button>
-          <button class="btn btn-danger btn-sm" onclick="eliminarProg('${p.id}')">✕</button>
+        <div class="prog-actions">
+          <button class="btn btn-ghost btn-sm btn-icon" title="Ejecutar ahora" onclick="ejecutarCron('${p.id}')">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21 5,3"/></svg>
+          </button>
+          <button class="btn btn-ghost btn-sm btn-icon" title="Editar" onclick="toggleEditProg('${p.id}')">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button class="btn btn-danger-ghost btn-sm btn-icon" title="Eliminar" onclick="eliminarProg('${p.id}')">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+          </button>
         </div>
       </div>
-      <div id="edit-${p.id}" class="prog-form">
-        <div class="form-row">
-          <div>
-            <label>Descripcion</label>
-            <input type="text" id="ed-desc-${p.id}" value="${p.descripcion}">
-          </div>
-          <div>
-            <label>Cron</label>
-            <input type="text" id="ed-cron-${p.id}" value="${p.cron}">
-          </div>
+      <div id="edit-${p.id}" class="prog-edit-form">
+        <div class="form-row2">
+          <div class="field"><label>Descripción</label><input type="text" id="ed-desc-${p.id}" value="${p.descripcion}"></div>
+          <div class="field"><label>Cron</label><input type="text" id="ed-cron-${p.id}" value="${p.cron}"><p class="hint">Lunes 9am: 0 9 * * 1</p></div>
         </div>
-        <label>Mensaje</label>
-        <textarea id="ed-msg-${p.id}" style="min-height:60px">${p.mensaje || ''}</textarea>
-        <div class="form-row">
-          <div>
-            <label>Grupos WhatsApp (IDs)</label>
-            <input type="text" id="ed-wa-${p.id}" value="${(p.destinatariosWhatsapp || []).join(', ')}">
-          </div>
-          <div>
-            <label>Grupos Email (IDs)</label>
-            <input type="text" id="ed-email-${p.id}" value="${(p.destinatariosEmail || []).join(', ')}">
-          </div>
+        <div class="field"><label>Mensaje</label><textarea id="ed-msg-${p.id}" style="min-height:60px">${p.mensaje||''}</textarea></div>
+        <div class="form-row2">
+          <div class="field"><label>Grupos WA (IDs)</label><input type="text" id="ed-wa-${p.id}" value="${(p.destinatariosWhatsapp||[]).join(', ')}"></div>
+          <div class="field"><label>Grupos Email (IDs)</label><input type="text" id="ed-email-${p.id}" value="${(p.destinatariosEmail||[]).join(', ')}"></div>
         </div>
-        <label>Asunto email</label>
-        <input type="text" id="ed-asunto-${p.id}" value="${p.asuntoEmail || ''}">
-        <div class="toggle-activo">
-          <input type="checkbox" id="ed-activo-${p.id}" ${p.activo ? 'checked' : ''}>
-          <label for="ed-activo-${p.id}">Activo</label>
-        </div>
-        <div style="display:flex;gap:8px;margin-top:12px">
-          <button class="btn btn-primary btn-sm" onclick="guardarProg('${p.id}')">Guardar cambios</button>
-          <button class="btn btn-sm" style="background:#eee;color:#333;margin-top:0" onclick="toggleEditarProg('${p.id}')">Cancelar</button>
+        <div class="field"><label>Asunto email</label><input type="text" id="ed-asunto-${p.id}" value="${p.asuntoEmail||''}"></div>
+        <div class="checkbox-row"><input type="checkbox" id="ed-activo-${p.id}" ${p.activo?'checked':''}><label for="ed-activo-${p.id}">Activo</label></div>
+        <div class="btn-row">
+          <button class="btn btn-blue btn-sm" onclick="guardarProg('${p.id}')">Guardar cambios</button>
+          <button class="btn btn-ghost btn-sm" onclick="toggleEditProg('${p.id}')">Cancelar</button>
         </div>
       </div>
     </div>
   `).join('');
 }
 
-function toggleEditarProg(id) {
-  document.getElementById('edit-' + id).classList.toggle('visible');
-}
-
-function mostrarFormNueva() {
-  document.getElementById('form-nueva-prog').style.display = 'block';
-}
-
-function cerrarFormNueva() {
-  document.getElementById('form-nueva-prog').style.display = 'none';
-}
+function toggleNuevaProg() { document.getElementById('form-nueva-prog').classList.toggle('open'); }
+function toggleEditProg(id) { document.getElementById('edit-'+id).classList.toggle('open'); }
 
 async function crearProgramacion() {
   const body = {
@@ -466,19 +791,14 @@ async function crearProgramacion() {
     mensaje: document.getElementById('np-msg').value,
     asuntoEmail: document.getElementById('np-asunto').value,
     activo: document.getElementById('np-activo').checked,
-    destinatariosWhatsapp: document.getElementById('np-wa').value.split(',').map(s => s.trim()).filter(Boolean),
-    destinatariosEmail: document.getElementById('np-email').value.split(',').map(s => s.trim()).filter(Boolean),
+    destinatariosWhatsapp: document.getElementById('np-wa').value.split(',').map(s=>s.trim()).filter(Boolean),
+    destinatariosEmail: document.getElementById('np-email').value.split(',').map(s=>s.trim()).filter(Boolean),
     foto: null
   };
-  const res = await fetch('/api/programaciones', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const res = await fetch('/api/programaciones', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
   const data = await res.json();
-  if (data.ok) {
-    cerrarFormNueva();
-    await cargarEstado();
-    mostrarAlerta('cron-estado', true, 'Programacion creada correctamente');
-  } else {
-    mostrarAlerta('cron-estado', false, data.error);
-  }
+  if (data.ok) { toggleNuevaProg(); await cargarEstado(); toast(true,'Programación creada'); }
+  else toast(false, data.error);
 }
 
 async function guardarProg(id) {
@@ -488,41 +808,32 @@ async function guardarProg(id) {
     mensaje: document.getElementById(`ed-msg-${id}`).value,
     asuntoEmail: document.getElementById(`ed-asunto-${id}`).value,
     activo: document.getElementById(`ed-activo-${id}`).checked,
-    destinatariosWhatsapp: document.getElementById(`ed-wa-${id}`).value.split(',').map(s => s.trim()).filter(Boolean),
-    destinatariosEmail: document.getElementById(`ed-email-${id}`).value.split(',').map(s => s.trim()).filter(Boolean)
+    destinatariosWhatsapp: document.getElementById(`ed-wa-${id}`).value.split(',').map(s=>s.trim()).filter(Boolean),
+    destinatariosEmail: document.getElementById(`ed-email-${id}`).value.split(',').map(s=>s.trim()).filter(Boolean)
   };
-  const res = await fetch(`/api/programaciones/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const res = await fetch(`/api/programaciones/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   const data = await res.json();
-  if (data.ok) {
-    await cargarEstado();
-    mostrarAlerta('cron-estado', true, 'Programacion actualizada correctamente');
-  } else {
-    mostrarAlerta('cron-estado', false, data.error);
-  }
+  if (data.ok) { await cargarEstado(); toast(true,'Programación actualizada'); }
+  else toast(false, data.error);
 }
 
 async function eliminarProg(id) {
-  if (!confirm('¿Eliminar esta programacion?')) return;
-  const res = await fetch(`/api/programaciones/${id}`, { method: 'DELETE' });
+  if (!confirm('¿Eliminar esta programación?')) return;
+  const res = await fetch(`/api/programaciones/${id}`,{method:'DELETE'});
   const data = await res.json();
-  if (data.ok) {
-    await cargarEstado();
-    mostrarAlerta('cron-estado', true, 'Programacion eliminada');
-  }
+  if (data.ok) { await cargarEstado(); toast(true,'Programación eliminada'); }
 }
 
 async function ejecutarCron(id) {
-  const res = await fetch(`/api/programaciones/${id}/ejecutar`, { method: 'POST' });
+  const res = await fetch(`/api/programaciones/${id}/ejecutar`,{method:'POST'});
   const data = await res.json();
-  mostrarAlerta('cron-estado', data.ok, data.ok ? 'Ejecutado correctamente' : 'Errores: ' + data.errores.join(', '));
+  toast(data.ok, data.ok ? 'Ejecutado correctamente' : 'Errores: '+data.errores.join(', '));
 }
 
-function mostrarTab(id, btn) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-  document.getElementById('tab-' + id).classList.add('active');
-  btn.classList.add('active');
-}
+// ── Estilos extra inline (spin) ──────────────────────────────────────────────
+const style = document.createElement('style');
+style.textContent = '@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}';
+document.head.appendChild(style);
 
 cargarEstado();
 setInterval(cargarEstado, 15000);

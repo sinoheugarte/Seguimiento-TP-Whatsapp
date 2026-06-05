@@ -73,18 +73,54 @@ async function inicializar() {
   });
 }
 
-async function enviarMensaje(chatId, texto, rutaFoto = null) {
+const MIME_MAP = {
+  jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp',
+  pdf: 'application/pdf',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  xls: 'application/vnd.ms-excel',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  doc: 'application/msword',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  ppt: 'application/vnd.ms-powerpoint',
+  zip: 'application/zip', rar: 'application/x-rar-compressed',
+  txt: 'text/plain', csv: 'text/csv'
+};
+
+function getMime(nombre) {
+  const ext = path.extname(nombre).slice(1).toLowerCase();
+  return MIME_MAP[ext] || 'application/octet-stream';
+}
+
+function esImagen(nombre) {
+  return ['jpg','jpeg','png','gif','webp'].includes(path.extname(nombre).slice(1).toLowerCase());
+}
+
+async function enviarMensaje(chatId, texto, archivos = []) {
   if (!listo) throw new Error('WhatsApp no esta conectado');
 
-  if (rutaFoto) {
-    const rutaCompleta = path.resolve('media', rutaFoto);
-    if (!fs.existsSync(rutaCompleta)) throw new Error(`Foto no encontrada: ${rutaCompleta}`);
-    const buffer = fs.readFileSync(rutaCompleta);
-    const ext = path.extname(rutaFoto).slice(1).toLowerCase();
-    const mimetype = ext === 'png' ? 'image/png' : 'image/jpeg';
-    await socket.sendMessage(chatId, { image: buffer, caption: texto, mimetype });
-  } else {
+  if (!archivos || archivos.length === 0) {
     await socket.sendMessage(chatId, { text: texto });
+    return;
+  }
+
+  for (let i = 0; i < archivos.length; i++) {
+    const nombreArchivo = archivos[i];
+    const rutaCompleta = path.resolve('media', nombreArchivo);
+    if (!fs.existsSync(rutaCompleta)) throw new Error(`Archivo no encontrado: ${rutaCompleta}`);
+    const buffer = fs.readFileSync(rutaCompleta);
+    const mime = getMime(nombreArchivo);
+    const caption = i === 0 ? texto : '';
+
+    if (esImagen(nombreArchivo)) {
+      await socket.sendMessage(chatId, { image: buffer, caption, mimetype: mime });
+    } else {
+      await socket.sendMessage(chatId, {
+        document: buffer,
+        mimetype: mime,
+        fileName: nombreArchivo,
+        caption
+      });
+    }
   }
 }
 

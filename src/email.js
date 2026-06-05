@@ -27,22 +27,21 @@ function inicializar() {
   });
 }
 
-async function enviarCorreo({ para, asunto, cuerpo, rutaFoto = null }) {
+async function enviarCorreo({ para, asunto, cuerpo, archivos = [] }) {
   if (!transporter) throw new Error('Correo no inicializado');
 
-  const adjuntos = [];
-  if (rutaFoto) {
-    const rutaCompleta = path.resolve('media', rutaFoto);
-    if (fs.existsSync(rutaCompleta)) {
-      adjuntos.push({ path: rutaCompleta, filename: path.basename(rutaCompleta) });
-    }
-  }
+  const adjuntos = (archivos || []).map(nombre => {
+    const rutaCompleta = path.resolve('media', nombre);
+    return fs.existsSync(rutaCompleta)
+      ? { path: rutaCompleta, filename: nombre }
+      : null;
+  }).filter(Boolean);
 
   const opciones = {
     from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
     to: Array.isArray(para) ? para.join(', ') : para,
     subject: asunto,
-    html: `<div style="font-family:Arial,sans-serif;font-size:14px">${cuerpo.replace(/\n/g, '<br>')}</div>`,
+    html: `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.6">${cuerpo.replace(/\n/g, '<br>')}</div>`,
     text: cuerpo,
     attachments: adjuntos
   };

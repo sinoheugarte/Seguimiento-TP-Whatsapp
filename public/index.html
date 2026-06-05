@@ -249,6 +249,58 @@
     .section-title { font-size: 1.3rem; font-weight: 700; margin-bottom: 6px; }
     .section-sub { font-size: .85rem; color: var(--text2); margin-bottom: 22px; }
     .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; align-items: center; }
+
+    /* ── Label con botón emoji ── */
+    .label-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .label-row label { font-size: .78rem; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .5px; margin: 0; }
+    .emoji-trigger {
+      background: none; border: 1px solid var(--border); border-radius: 6px;
+      cursor: pointer; font-size: 1rem; padding: 2px 8px; line-height: 1.5;
+      color: var(--text2); transition: var(--trans);
+    }
+    .emoji-trigger:hover { border-color: var(--accent); background: rgba(0,200,150,.08); color: var(--text); }
+
+    /* ── Emoji Picker ── */
+    #emoji-picker {
+      position: fixed; z-index: 300;
+      width: 340px; background: #111e2c;
+      border: 1px solid rgba(255,255,255,.12); border-radius: 14px;
+      box-shadow: 0 16px 48px rgba(0,0,0,.65);
+      display: none; flex-direction: column;
+      overflow: hidden; animation: epIn .18s ease;
+    }
+    #emoji-picker.open { display: flex; }
+    @keyframes epIn { from{opacity:0;transform:scale(.95)} to{opacity:1;transform:scale(1)} }
+    .ep-search { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,.06); }
+    .ep-search input {
+      width: 100%; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
+      border-radius: 8px; padding: 7px 12px; color: var(--text); font-size: .85rem; font-family: inherit;
+    }
+    .ep-search input:focus { outline: none; border-color: var(--accent); }
+    .ep-cats {
+      display: flex; gap: 2px; padding: 6px 10px; border-bottom: 1px solid rgba(255,255,255,.06);
+      overflow-x: auto; scrollbar-width: none;
+    }
+    .ep-cats::-webkit-scrollbar { display: none; }
+    .ep-cat {
+      background: none; border: none; cursor: pointer; font-size: 1.1rem;
+      padding: 4px 7px; border-radius: 6px; transition: var(--trans); flex-shrink: 0;
+    }
+    .ep-cat:hover, .ep-cat.active { background: rgba(0,200,150,.15); }
+    .ep-grid {
+      display: grid; grid-template-columns: repeat(8, 1fr);
+      gap: 2px; padding: 8px 10px; max-height: 220px; overflow-y: auto;
+      scrollbar-width: thin; scrollbar-color: #2a3a4a transparent;
+    }
+    .ep-grid::-webkit-scrollbar { width: 4px; }
+    .ep-grid::-webkit-scrollbar-thumb { background: #2a3a4a; border-radius: 4px; }
+    .ep-emoji {
+      background: none; border: none; cursor: pointer; font-size: 1.25rem;
+      padding: 5px; border-radius: 6px; transition: var(--trans); line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .ep-emoji:hover { background: rgba(0,200,150,.18); transform: scale(1.2); }
+    .ep-empty { color: var(--text2); font-size: .82rem; padding: 20px; text-align: center; grid-column: 1/-1; }
   </style>
 </head>
 <body>
@@ -318,7 +370,7 @@
 
       <div class="card">
         <div class="field">
-          <label>Mensaje</label>
+          <div class="label-row"><label>Mensaje</label><button class="emoji-trigger" type="button" onclick="abrirEmoji('c-msg',this)" title="Insertar emoji">😊</button></div>
           <textarea id="c-msg" placeholder="Escribe el mensaje aquí..."></textarea>
         </div>
 
@@ -463,7 +515,7 @@
           </div>
         </div>
         <div class="field">
-          <label>Mensaje</label>
+          <div class="label-row"><label>Mensaje</label><button class="emoji-trigger" type="button" onclick="abrirEmoji('wsp-msg',this)" title="Insertar emoji">😊</button></div>
           <textarea id="wsp-msg" placeholder="Escribe el mensaje..."></textarea>
         </div>
         <div class="field">
@@ -502,7 +554,7 @@
           <input type="text" id="email-asunto" placeholder="Asunto del correo">
         </div>
         <div class="field">
-          <label>Mensaje</label>
+          <div class="label-row"><label>Mensaje</label><button class="emoji-trigger" type="button" onclick="abrirEmoji('email-cuerpo',this)" title="Insertar emoji">😊</button></div>
           <textarea id="email-cuerpo" placeholder="Cuerpo del correo..."></textarea>
         </div>
         <div class="field">
@@ -569,6 +621,13 @@
     </div>
 
   </main>
+</div>
+
+<!-- Emoji Picker (shared, repositioned dynamically) -->
+<div id="emoji-picker">
+  <div class="ep-search"><input type="text" id="ep-search-input" placeholder="🔍 Buscar emoji..." oninput="filtrarEmojis(this.value)"></div>
+  <div class="ep-cats" id="ep-cats"></div>
+  <div class="ep-grid" id="ep-grid"></div>
 </div>
 
 <script>
@@ -1009,6 +1068,104 @@ function resetPanel(panel) {
 const style = document.createElement('style');
 style.textContent = '@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}';
 document.head.appendChild(style);
+
+// ── Emoji Picker ──────────────────────────────────────────────────────────────
+
+const EMOJI_DATA = [
+  { cat: '😀', label: 'Smileys', emojis: ['😀','😃','😄','😁','😆','😅','🤣','😂','🙂','🙃','😉','😊','😇','🥰','😍','🤩','😘','😗','😚','😙','🥲','😋','😛','😜','🤪','😝','🤑','🤗','🤭','🤫','🤔','🤐','🤨','😐','😑','😶','😏','😒','🙄','😬','🤥','😌','😔','😪','🤤','😴','😷','🤒','🤕','🤢','🤮','🤧','🥵','🥶','🥴','😵','💫','🤯','🤠','🥳','🥸','😎','🤓','🧐','😕','😟','🙁','☹️','😮','😯','😲','😳','🥺','😦','😧','😨','😰','😥','😢','😭','😱','😖','😣','😞','😓','😩','😫','🥱','😤','😡','😠','🤬','😈','👿','💀','☠️','💩','🤡','👹','👺','👻','👽','👾','🤖'] },
+  { cat: '👋', label: 'Gestos', emojis: ['👋','🤚','🖐️','✋','🖖','👌','🤌','🤏','✌️','🤞','🤟','🤘','🤙','👈','👉','👆','🖕','👇','☝️','👍','👎','✊','👊','🤛','🤜','👏','🙌','👐','🤲','🤝','🙏','✍️','💅','🤳','💪','🦾','🦿','🦵','🦶','👂','🦻','👃','🫀','🫁','🧠','🦷','🦴','👀','👁️','👅','👄','🫦','💋','💌','💘','💝','💖','💗','💓','💞','💕','💟','❣️','💔','❤️','🧡','💛','💚','💙','💜','🤎','🖤','🤍'] },
+  { cat: '🐶', label: 'Animales', emojis: ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🙈','🙉','🙊','🐔','🐧','🐦','🐤','🦆','🦅','🦉','🦇','🐺','🐗','🐴','🦄','🐝','🐛','🦋','🐌','🐞','🐜','🦟','🦗','🕷️','🦂','🐢','🐍','🦎','🦖','🦕','🐙','🦑','🦐','🦞','🦀','🐡','🐠','🐟','🐬','🐳','🐋','🦈','🐊','🐅','🐆','🦓','🦍','🦧','🦣','🐘','🦛','🦏','🐪','🐫','🦒','🦘','🦬','🐃','🐂','🐄','🐎','🐖','🐏','🐑','🦙','🐐','🦌','🐕','🐩','🦮','🐈','🐓','🦃','🦤','🦚','🦜','🦩','🦢','🦆','🐇','🦝','🦨','🦡','🦫','🦦','🦥','🐁','🐀','🐿️','🦔'] },
+  { cat: '🍕', label: 'Comida', emojis: ['🍏','🍎','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🫐','🍈','🍒','🍑','🥭','🍍','🥥','🥝','🍅','🍆','🥑','🥦','🥬','🥒','🌶️','🫑','🥕','🧄','🧅','🥔','🍠','🥐','🥯','🍞','🥖','🥨','🧀','🥚','🍳','🧈','🥞','🧇','🥓','🥩','🍗','🍖','🌭','🍔','🍟','🍕','🫓','🥪','🥙','🧆','🌮','🌯','🫔','🥗','🥘','🫕','🥫','🍝','🍜','🍲','🍛','🍣','🍱','🥟','🦪','🍤','🍙','🍚','🍘','🍥','🥮','🍢','🧁','🍰','🎂','🍮','🍭','🍬','🍫','🍿','🍩','🍪','🌰','🥜','🍯','🧃','🥤','🧋','☕','🍵','🫖','🍺','🍻','🥂','🍷','🥃','🍸','🍹','🧉','🍾','🧊','🥄','🍴','🍽️'] },
+  { cat: '⚽', label: 'Actividades', emojis: ['⚽','🏀','🏈','⚾','🥎','🎾','🏐','🏉','🥏','🎱','🪀','🏓','🏸','🏒','🥍','🏑','🏏','🪃','🥅','⛳','🪁','🏹','🎣','🤿','🎽','🎿','🛷','🥌','🎯','🪀','🪄','🎮','🎲','🧩','🎭','🎨','🖌️','🖍️','✏️','📝','🎤','🎧','🎼','🎵','🎶','🎷','🪗','🎸','🎹','🎺','🎻','🥁','🪘','🎬','🏆','🥇','🥈','🥉','🏅','🎖️','🎗️','🎫','🎟️','🎪','🤹','🎠','🎡','🎢','🎭','🎬'] },
+  { cat: '🚗', label: 'Viajes', emojis: ['🚗','🚕','🚙','🛻','🚌','🚎','🏎️','🚓','🚑','🚒','🚐','🛒','🚚','🚛','🚜','🏍️','🛵','🛺','🚲','🛴','🛹','🛼','🚏','🛣️','🛤️','⛽','🛞','🚨','🚥','🚦','🚧','⚓','🛟','⛵','🛶','🚤','🛳️','⛴️','🛥️','🚢','✈️','🛩️','🛫','🛬','🛰️','🚀','🛸','🚁','🛺','🪂','⛱️','🏖️','🏔️','⛰️','🌋','🗺️','🏕️','🏞️','🌅','🌄','🌠','🌌','🌃','🌆','🌇','🌉','🌁'] },
+  { cat: '💡', label: 'Objetos', emojis: ['💡','🔦','🕯️','📱','💻','🖥️','🖨️','🖱️','⌨️','📷','📸','📹','🎥','📽️','📞','☎️','📟','📠','📺','📻','🎙️','🎚️','🎛️','⏱️','⏲️','⏰','🕰️','⌚','⏳','📡','🔋','🪫','🔌','💿','📀','💾','🧮','📠','🔭','🔬','🧪','🧫','🧬','💊','💉','🩺','🩻','🪥','🛁','🚿','🪒','🧴','🧹','🧺','🧻','🧼','🪣','🧽','🪤','🔑','🗝️','🔒','🔓','🔨','🪓','⛏️','🔧','🔩','🪛','⚙️','🗜️','📌','📍','✂️','🗃️','📦','📫','✉️','📧','📝','📁','📊','📈','📉','🗒️','📅','📆','📇','🗂️','💼','👜','👝','🎒','🧳'] },
+  { cat: '❤️', label: 'Símbolos', emojis: ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❤️‍🔥','❤️‍🩹','💕','💞','💓','💗','💖','💝','💘','💟','☮️','✝️','☪️','🕉️','☯️','✡️','🔯','🕎','☦️','⛎','♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓','🆔','⚕️','♾️','♻️','⚜️','🔱','📛','🔰','✅','❌','❎','💯','💢','💥','💫','💦','💨','🕳️','💬','💭','🗯️','💤','🔔','🔕','🎵','🎶','⚠️','🚸','🔞','🆘','❗','❓','🆕','🆗','🆙','🆒','🆓','🔟','🔢','🔣','▶️','⏸️','⏹️','⏺️','⏭️','⏮️','🔀','🔁','🔂','⬆️','⬇️','⬅️','➡️','🔤','🔡','🔠','🌐','⭕','🔵','🟤','⚫','⚪','🟣','🔴','🟠','🟡','🟢'] }
+];
+
+let epCurrentTextareaId = null;
+let epCurrentCatIdx = 0;
+
+function initEmojiPicker() {
+  const catsEl = document.getElementById('ep-cats');
+  catsEl.innerHTML = EMOJI_DATA.map((c, i) =>
+    `<button class="ep-cat ${i===0?'active':''}" title="${c.label}" onclick="selectEmojiCat(${i})">${c.cat}</button>`
+  ).join('');
+  renderEmojiGrid(0);
+}
+
+function selectEmojiCat(idx) {
+  epCurrentCatIdx = idx;
+  document.querySelectorAll('.ep-cat').forEach((b,i) => b.classList.toggle('active', i===idx));
+  document.getElementById('ep-search-input').value = '';
+  renderEmojiGrid(idx);
+}
+
+function renderEmojiGrid(catIdx) {
+  const grid = document.getElementById('ep-grid');
+  const lista = EMOJI_DATA[catIdx].emojis;
+  grid.innerHTML = lista.map(e => `<button class="ep-emoji" onclick="insertarEmoji('${e}')">${e}</button>`).join('');
+}
+
+function filtrarEmojis(q) {
+  const grid = document.getElementById('ep-grid');
+  if (!q) { renderEmojiGrid(epCurrentCatIdx); return; }
+  const ql = q.toLowerCase();
+  const matches = EMOJI_DATA.filter(c => c.label.toLowerCase().includes(ql)).flatMap(c => c.emojis);
+  if (matches.length) {
+    grid.innerHTML = matches.map(e => `<button class="ep-emoji" onclick="insertarEmoji('${e}')">${e}</button>`).join('');
+  } else {
+    grid.innerHTML = `<div class="ep-empty">Sin resultados para "${q}"</div>`;
+  }
+}
+
+function abrirEmoji(textareaId, btn) {
+  const picker = document.getElementById('emoji-picker');
+  const isMismoBoton = epCurrentTextareaId === textareaId && picker.classList.contains('open');
+  cerrarEmoji();
+  if (isMismoBoton) return;
+
+  epCurrentTextareaId = textareaId;
+  document.getElementById('ep-search-input').value = '';
+  renderEmojiGrid(epCurrentCatIdx);
+
+  picker.classList.add('open');
+  posicionarEmoji(btn);
+}
+
+function posicionarEmoji(btn) {
+  const picker = document.getElementById('emoji-picker');
+  const rect = btn.getBoundingClientRect();
+  const pw = 340, ph = 320;
+  let top = rect.bottom + 8;
+  let left = rect.right - pw;
+  if (left < 8) left = 8;
+  if (top + ph > window.innerHeight - 8) top = rect.top - ph - 8;
+  picker.style.top = top + 'px';
+  picker.style.left = left + 'px';
+}
+
+function insertarEmoji(emoji) {
+  const ta = document.getElementById(epCurrentTextareaId);
+  if (!ta) return;
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  ta.value = ta.value.slice(0, start) + emoji + ta.value.slice(end);
+  ta.selectionStart = ta.selectionEnd = start + emoji.length;
+  ta.focus();
+}
+
+function cerrarEmoji() {
+  const picker = document.getElementById('emoji-picker');
+  picker.classList.remove('open');
+  epCurrentTextareaId = null;
+}
+
+document.addEventListener('click', (e) => {
+  const picker = document.getElementById('emoji-picker');
+  if (!picker.classList.contains('open')) return;
+  if (!picker.contains(e.target) && !e.target.classList.contains('emoji-trigger')) cerrarEmoji();
+});
+
+initEmojiPicker();
 
 cargarEstado();
 setInterval(cargarEstado, 15000);

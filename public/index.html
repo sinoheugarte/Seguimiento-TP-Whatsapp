@@ -127,18 +127,16 @@
     .upload-zone-icon { color: var(--text2); margin-bottom: 8px; }
     .upload-zone p { font-size: .83rem; color: var(--text2); }
     .upload-zone span { color: var(--accent); font-weight: 600; }
-    .archivos-lista { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-    .archivo-chip {
-      display: flex; align-items: center; gap: 6px;
-      background: var(--surface2); border: 1px solid var(--border);
-      border-radius: 6px; padding: 5px 10px; font-size: .78rem;
-      animation: chipIn .18s ease;
-    }
+    .archivos-lista { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
     @keyframes chipIn { from{opacity:0;transform:scale(.9)} to{opacity:1;transform:scale(1)} }
-    .archivo-chip .chip-icon { width: 20px; height: 20px; flex-shrink: 0; }
-    .archivo-chip .chip-name { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
-    .archivo-chip .chip-remove { cursor: pointer; color: var(--text2); padding: 0 2px; font-size: 1rem; line-height: 1; transition: var(--trans); }
-    .archivo-chip .chip-remove:hover { color: var(--danger); }
+    .galeria-item { position: relative; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); background: var(--surface2); animation: chipIn .2s ease; width: 100px; flex-shrink: 0; }
+    .galeria-item-img { width: 100px; height: 100px; object-fit: cover; display: block; }
+    .galeria-item-doc { width: 100px; height: 100px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 10px; }
+    .galeria-doc-ext { font-size: .68rem; font-weight: 800; padding: 3px 8px; border-radius: 5px; letter-spacing: .5px; }
+    .galeria-doc-name { font-size: .68rem; color: var(--text2); text-align: center; word-break: break-all; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; }
+    .galeria-overlay { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,.75)); padding: 14px 6px 5px; font-size: .64rem; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .galeria-remove { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,.55); border: none; color: #fff; width: 20px; height: 20px; border-radius: 50%; cursor: pointer; font-size: .9rem; line-height: 1; display: flex; align-items: center; justify-content: center; transition: var(--trans); padding: 0; }
+    .galeria-remove:hover { background: var(--danger); transform: scale(1.1); }
 
     /* ── Grupos selector ── */
     .grupos-selector { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
@@ -812,16 +810,32 @@ function mostrarArchivos(input, listaId) {
   renderChips(listaId, input.id);
 }
 
+const IMG_EXTS = new Set(['jpg','jpeg','png','gif','webp']);
+
 function renderChips(listaId, inputId) {
   const lista = document.getElementById(listaId);
   const files = archivosMap[inputId] || [];
-  lista.innerHTML = files.map((f, i) =>
-    `<div class="archivo-chip">
-      ${extIcon(f.name)}
-      <span class="chip-name" title="${f.name}">${f.name}</span>
-      <span class="chip-remove" onclick="quitarArchivo('${inputId}','${listaId}',${i})">×</span>
-    </div>`
-  ).join('');
+  if (!files.length) { lista.innerHTML = ''; return; }
+  lista.innerHTML = files.map((f, i) => {
+    const ext = f.name.split('.').pop().toLowerCase();
+    if (IMG_EXTS.has(ext)) {
+      const url = URL.createObjectURL(f);
+      return `<div class="galeria-item">
+        <img class="galeria-item-img" src="${url}" alt="${f.name}">
+        <div class="galeria-overlay">${f.name}</div>
+        <button class="galeria-remove" onclick="quitarArchivo('${inputId}','${listaId}',${i})" title="Quitar">×</button>
+      </div>`;
+    }
+    const color = EXT_ICONS[ext] || '#8899aa';
+    const label = ext.toUpperCase().slice(0,4);
+    return `<div class="galeria-item">
+      <div class="galeria-item-doc">
+        <div class="galeria-doc-ext" style="background:${color}22;color:${color}">${label}</div>
+        <div class="galeria-doc-name">${f.name}</div>
+      </div>
+      <button class="galeria-remove" onclick="quitarArchivo('${inputId}','${listaId}',${i})" title="Quitar">×</button>
+    </div>`;
+  }).join('');
 }
 
 function quitarArchivo(inputId, listaId, idx) {

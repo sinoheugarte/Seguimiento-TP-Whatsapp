@@ -86,9 +86,24 @@ async function inicializar() {
 
     if (connection === 'close') {
       listo = false;
-      const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+      const statusCode = lastDisconnect?.error?.output?.statusCode;
+      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
       log('Desconectado. Reconectar: ' + shouldReconnect);
-      if (shouldReconnect) setTimeout(inicializar, 5000);
+      if (shouldReconnect) {
+        setTimeout(inicializar, 5000);
+      } else {
+        // Sesión cerrada — limpiar credenciales y reiniciar para obtener QR nuevo
+        log('Sesión cerrada (loggedOut). Limpiando credenciales...');
+        try {
+          const files = fs.readdirSync(AUTH_DIR);
+          for (const f of files) {
+            if (f !== 'contacts-cache.json') {
+              fs.unlinkSync(path.join(AUTH_DIR, f));
+            }
+          }
+        } catch (_) {}
+        setTimeout(inicializar, 3000);
+      }
     }
   });
 

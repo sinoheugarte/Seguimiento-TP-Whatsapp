@@ -155,6 +155,38 @@ app.delete('/api/programaciones/:id', (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ── Ajustes: Grupos de correo ─────────────────────────────────────────────────
+app.post('/api/ajustes/grupos-email', (req, res) => {
+  try {
+    const config = leerConfig();
+    const { nombre, direcciones } = req.body;
+    const nuevo = { id: 'ge-' + Date.now(), nombre, direcciones };
+    config.email.destinatarios.push(nuevo);
+    guardarConfig(config);
+    res.json({ ok: true, grupo: nuevo });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/ajustes/grupos-email/:id', (req, res) => {
+  try {
+    const config = leerConfig();
+    const idx = config.email.destinatarios.findIndex(g => g.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'No encontrado' });
+    config.email.destinatarios[idx] = { ...config.email.destinatarios[idx], ...req.body };
+    guardarConfig(config);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/ajustes/grupos-email/:id', (req, res) => {
+  try {
+    const config = leerConfig();
+    config.email.destinatarios = config.email.destinatarios.filter(g => g.id !== req.params.id);
+    guardarConfig(config);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 function iniciar(puerto) {
   app.listen(puerto, () => console.log(`✓ Panel web disponible en http://localhost:${puerto}`));
 }

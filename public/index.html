@@ -170,6 +170,12 @@
     .lista-vacia { padding: 14px 16px; font-size: .82rem; color: var(--text2); text-align: center; }
     .reload-btn { background: none; border: none; cursor: pointer; color: var(--text2); padding: 4px; border-radius: 6px; transition: var(--trans); display: flex; align-items: center; }
     .reload-btn:hover { color: var(--accent); background: rgba(0,200,150,.1); }
+    .reload-btn.cargando { color: var(--accent); pointer-events: none; }
+    .reload-btn.cargando svg { animation: spin 0.8s linear infinite; }
+
+    /* ── Ajustes ── */
+    .ajuste-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 10px; transition: var(--trans); }
+    .ajuste-card:hover { border-color: rgba(255,255,255,.12); }
 
     /* ── Buttons ── */
     .btn {
@@ -362,6 +368,10 @@
       <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
       Programaciones
     </button>
+    <button class="nav-item" onclick="mostrarPanel('ajustes',this)" id="nav-ajustes">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      Ajustes
+    </button>
   </aside>
 
   <!-- Main -->
@@ -401,7 +411,7 @@
               </span>
               <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
                 <span id="c-grupos-cuenta" class="grupos-cuenta" style="display:none"></span>
-                <button class="reload-btn" onclick="cargarEstado()" title="Recargar grupos">
+                <button class="reload-btn" onclick="recargar(this)" title="Recargar grupos">
                   <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
                 </button>
                 <svg id="c-grupos-arrow" class="grupos-arrow" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>
@@ -428,7 +438,7 @@
               </span>
               <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
                 <span id="c-contactos-cuenta" class="grupos-cuenta" style="display:none"></span>
-                <button class="reload-btn" onclick="cargarEstado()" title="Recargar contactos">
+                <button class="reload-btn" onclick="recargar(this)" title="Recargar contactos">
                   <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
                 </button>
                 <svg id="c-contactos-arrow" class="grupos-arrow" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>
@@ -488,7 +498,7 @@
               </span>
               <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
                 <span id="wsp-grupos-cuenta" class="grupos-cuenta" style="display:none"></span>
-                <button class="reload-btn" onclick="cargarEstado()" title="Recargar grupos">
+                <button class="reload-btn" onclick="recargar(this)" title="Recargar grupos">
                   <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
                 </button>
                 <svg id="wsp-grupos-arrow" class="grupos-arrow" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>
@@ -514,7 +524,7 @@
               </span>
               <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
                 <span id="wsp-contactos-cuenta" class="grupos-cuenta" style="display:none"></span>
-                <button class="reload-btn" onclick="cargarEstado()" title="Recargar contactos">
+                <button class="reload-btn" onclick="recargar(this)" title="Recargar contactos">
                   <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
                 </button>
                 <svg id="wsp-contactos-arrow" class="grupos-arrow" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>
@@ -634,6 +644,43 @@
 
       <div id="prog-grid" class="prog-grid"></div>
       <div id="prog-toast-area" style="margin-top:12px"></div>
+    </div>
+
+    <!-- ══ AJUSTES ══ -->
+    <div id="panel-ajustes" class="panel">
+      <div class="section-title">Ajustes</div>
+      <div class="section-sub">Configura grupos de correo predefinidos y otras opciones de la aplicación.</div>
+
+      <div class="card">
+        <div class="card-title">Grupos de correo predefinidos</div>
+        <div class="card-desc">Define grupos de destinatarios para seleccionarlos rápidamente al enviar mensajes.</div>
+
+        <button class="btn btn-blue btn-sm" style="margin-bottom:16px" onclick="toggleFormNuevoGrupoEmail()">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Nuevo grupo
+        </button>
+
+        <div id="form-nuevo-grupo-email" class="new-prog-form">
+          <div class="new-prog-title">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            Nuevo grupo de correo
+          </div>
+          <div class="form-row2">
+            <div class="field"><label>Nombre del grupo</label><input type="text" id="ge-nombre" placeholder="Ej: Gerencia, Ventas..."></div>
+            <div class="field">
+              <label>Correos electrónicos</label>
+              <input type="text" id="ge-emails" placeholder="correo1@emp.com, correo2@emp.com">
+              <p class="hint">Separa múltiples correos con coma</p>
+            </div>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-blue btn-sm" onclick="crearGrupoEmail()">Guardar</button>
+            <button class="btn btn-ghost btn-sm" onclick="toggleFormNuevoGrupoEmail()">Cancelar</button>
+          </div>
+        </div>
+
+        <div id="lista-grupos-email" class="prog-grid"></div>
+      </div>
     </div>
 
   </main>
@@ -797,6 +844,9 @@ function renderizarGrupos() {
       <label for="ce-${d.id}">${d.nombre} — <span style="color:var(--text2)">${d.direcciones.join(', ')}</span></label>
     </div>`
   ).join('');
+
+  reaplicarFiltros();
+  renderizarGruposEmail();
 }
 
 function actualizarCuenta() {
@@ -827,11 +877,29 @@ function toggleGrupos(bodyId, arrowId) {
   document.getElementById(arrowId).classList.toggle('open');
 }
 
+const filtrosActivos = {};
+
 function filtrarGrupos(input, listaId) {
+  filtrosActivos[listaId] = input.value;
   const q = input.value.toLowerCase();
   document.querySelectorAll(`#${listaId} .grupo-item`).forEach(el => {
     el.style.display = el.dataset.nombre.includes(q) ? '' : 'none';
   });
+}
+
+function reaplicarFiltros() {
+  for (const [listaId, q] of Object.entries(filtrosActivos)) {
+    if (!q) continue;
+    const ql = q.toLowerCase();
+    document.querySelectorAll(`#${listaId} .grupo-item`).forEach(el => {
+      el.style.display = el.dataset.nombre.includes(ql) ? '' : 'none';
+    });
+    const contenedor = document.getElementById(listaId)?.closest('.grupos-body');
+    if (contenedor) {
+      const inp = contenedor.querySelector('.grupos-search input');
+      if (inp && inp.value !== q) inp.value = q;
+    }
+  }
 }
 
 function seleccionarTodos(listaId, marcar) {
@@ -841,6 +909,11 @@ function seleccionarTodos(listaId, marcar) {
   actualizarCuenta();
 }
 
+
+function recargar(btn) {
+  btn.classList.add('cargando');
+  cargarEstado().finally(() => btn.classList.remove('cargando'));
+}
 
 // ── Botones con feedback ──────────────────────────────────────────────────────
 
@@ -1100,6 +1173,96 @@ function resetPanel(panel) {
 const style = document.createElement('style');
 style.textContent = '@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}';
 document.head.appendChild(style);
+
+// ── Ajustes: Grupos de correo ─────────────────────────────────────────────────
+
+function toggleFormNuevoGrupoEmail() {
+  const form = document.getElementById('form-nuevo-grupo-email');
+  form.classList.toggle('open');
+  if (form.classList.contains('open')) {
+    document.getElementById('ge-nombre').value = '';
+    document.getElementById('ge-emails').value = '';
+    document.getElementById('ge-nombre').focus();
+  }
+}
+
+function renderizarGruposEmail() {
+  const lista = document.getElementById('lista-grupos-email');
+  if (!lista) return;
+  const grupos = estado.destinatariosEmail || [];
+  if (!grupos.length) {
+    lista.innerHTML = '<p style="color:var(--text2);font-size:.88rem;padding:8px 0">No hay grupos configurados. Crea el primero con el botón de arriba.</p>';
+    return;
+  }
+  lista.innerHTML = grupos.map(g => `
+    <div class="prog-card" id="ge-card-${g.id}">
+      <div class="prog-top">
+        <div>
+          <div class="prog-title">${g.nombre}</div>
+          <div class="prog-meta" style="margin-top:4px">${g.direcciones.join(' &nbsp;·&nbsp; ')}</div>
+        </div>
+        <div class="prog-actions">
+          <button class="btn btn-ghost btn-sm btn-icon" title="Editar" onclick="toggleEditGrupoEmail('${g.id}')">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button class="btn btn-danger-ghost btn-sm btn-icon" title="Eliminar" onclick="eliminarGrupoEmail('${g.id}')">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+          </button>
+        </div>
+      </div>
+      <div id="edit-ge-${g.id}" class="prog-edit-form">
+        <div class="form-row2">
+          <div class="field"><label>Nombre</label><input type="text" id="ge-nombre-${g.id}" value="${g.nombre.replace(/"/g,'&quot;')}"></div>
+          <div class="field"><label>Correos (separados por coma)</label><input type="text" id="ge-emails-${g.id}" value="${g.direcciones.join(', ')}"></div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-blue btn-sm" onclick="guardarGrupoEmail('${g.id}')">Guardar cambios</button>
+          <button class="btn btn-ghost btn-sm" onclick="toggleEditGrupoEmail('${g.id}')">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function toggleEditGrupoEmail(id) {
+  document.getElementById('edit-ge-' + id).classList.toggle('open');
+}
+
+async function crearGrupoEmail() {
+  const nombre = document.getElementById('ge-nombre').value.trim();
+  const direcciones = document.getElementById('ge-emails').value.split(',').map(e => e.trim()).filter(Boolean);
+  if (!nombre || !direcciones.length) { toast(false, 'Nombre y al menos un correo son requeridos'); return; }
+  const res = await fetch('/api/ajustes/grupos-email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nombre, direcciones })
+  });
+  const data = await res.json();
+  if (data.ok) { toggleFormNuevoGrupoEmail(); await cargarEstado(); toast(true, 'Grupo creado'); }
+  else toast(false, data.error);
+}
+
+async function guardarGrupoEmail(id) {
+  const nombre = document.getElementById(`ge-nombre-${id}`).value.trim();
+  const direcciones = document.getElementById(`ge-emails-${id}`).value.split(',').map(e => e.trim()).filter(Boolean);
+  if (!nombre || !direcciones.length) { toast(false, 'Nombre y al menos un correo son requeridos'); return; }
+  const res = await fetch(`/api/ajustes/grupos-email/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nombre, direcciones })
+  });
+  const data = await res.json();
+  if (data.ok) { await cargarEstado(); toast(true, 'Grupo actualizado'); }
+  else toast(false, data.error);
+}
+
+async function eliminarGrupoEmail(id) {
+  if (!confirm('¿Eliminar este grupo de correo?')) return;
+  const res = await fetch(`/api/ajustes/grupos-email/${id}`, { method: 'DELETE' });
+  const data = await res.json();
+  if (data.ok) { await cargarEstado(); toast(true, 'Grupo eliminado'); }
+  else toast(false, data.error);
+}
 
 // ── Emoji Picker ──────────────────────────────────────────────────────────────
 

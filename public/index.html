@@ -393,6 +393,10 @@
       <span class="wa-dot"></span>
       <span id="wa-text">WhatsApp desconectado</span>
     </div>
+    <button id="btn-logout-wa" onclick="cerrarSesionWA()" title="Cerrar sesión de WhatsApp" style="display:none;background:rgba(255,71,87,.12);border:1px solid rgba(255,71,87,.3);color:#ff6b7a;border-radius:8px;padding:6px 11px;cursor:pointer;font-size:.78rem;font-weight:600;display:none;align-items:center;gap:6px;transition:var(--trans)">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Cerrar sesión
+    </button>
   </div>
 </header>
 
@@ -875,6 +879,8 @@ async function cargarEstado() {
     const txt = document.getElementById('wa-text');
     pill.className = 'wa-pill ' + (estado.whatsapp ? 'ok' : 'err');
     txt.textContent = estado.whatsapp ? 'WhatsApp conectado' : 'WhatsApp desconectado';
+    const btnLogout = document.getElementById('btn-logout-wa');
+    if (btnLogout) btnLogout.style.display = estado.whatsapp ? 'flex' : 'none';
     if (!estado.whatsapp) mostrarQR();
     else document.getElementById('qr-modal').style.display = 'none';
   } catch(err) {
@@ -885,6 +891,19 @@ async function cargarEstado() {
   // Siempre renderizar con los datos disponibles (reales o vacíos)
   renderizarGrupos();
   renderizarProgramaciones();
+}
+
+async function cerrarSesionWA() {
+  if (!confirm('¿Cerrar sesión de WhatsApp?\nDeberás escanear el QR nuevamente para reconectar.')) return;
+  const btn = document.getElementById('btn-logout-wa');
+  if (btn) { btn.style.opacity = '.5'; btn.style.pointerEvents = 'none'; }
+  try {
+    const res = await fetch('/api/whatsapp/logout', { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) toast(true, 'Sesión cerrada — escanea el QR para reconectar');
+    else toast(false, data.error);
+  } catch(e) { toast(false, 'Error al cerrar sesión'); }
+  setTimeout(cargarEstado, 2500);
 }
 
 async function mostrarQR() {

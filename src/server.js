@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR } = require('./whatsapp');
+const { enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion } = require('./whatsapp');
 const qrcode = require('qrcode');
 const { enviarCorreo } = require('./email');
 const { ejecutarProgramacion, iniciarProgramaciones, detenerTodo } = require('./scheduler');
@@ -38,6 +38,16 @@ function procesarArchivos(files) {
     return path.basename(destino);
   });
 }
+
+// ── WhatsApp logout ───────────────────────────────────────────────────────────
+app.post('/api/whatsapp/logout', async (req, res) => {
+  try {
+    await cerrarSesion();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ── QR ───────────────────────────────────────────────────────────────────────
 app.get('/api/qr', async (req, res) => {

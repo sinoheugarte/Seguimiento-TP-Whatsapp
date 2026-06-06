@@ -237,4 +237,20 @@ function listarContactos() {
 function getUltimoQR() { return ultimoQR; }
 function estaListo() { return listo; }
 
-module.exports = { inicializar, enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR };
+async function cerrarSesion() {
+  listo = false;
+  ultimoQR = null;
+  try { if (socket) await socket.logout(); } catch (_) {}
+  socket = null;
+  // Eliminar archivos de autenticación preservando el cache de contactos
+  try {
+    const files = fs.readdirSync(AUTH_DIR);
+    for (const f of files) {
+      if (f !== 'contacts-cache.json') fs.unlinkSync(path.join(AUTH_DIR, f));
+    }
+  } catch (_) {}
+  log('Sesión cerrada manualmente. Generando nuevo QR...');
+  setTimeout(inicializar, 1500);
+}
+
+module.exports = { inicializar, enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion };

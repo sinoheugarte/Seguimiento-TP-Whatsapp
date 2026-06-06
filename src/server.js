@@ -160,6 +160,14 @@ app.delete('/api/programaciones/:id', (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ── Media upload ─────────────────────────────────────────────────────────────
+app.post('/api/media/upload', upload.array('archivos', 20), (req, res) => {
+  try {
+    const archivos = procesarArchivos(req.files);
+    res.json({ ok: true, archivos });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ── Ajustes: Grupos de correo ─────────────────────────────────────────────────
 app.post('/api/ajustes/grupos-email', (req, res) => {
   try {

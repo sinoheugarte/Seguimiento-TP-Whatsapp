@@ -137,6 +137,16 @@
     .galeria-overlay { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,.75)); padding: 14px 6px 5px; font-size: .64rem; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .galeria-remove { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,.55); border: none; color: #fff; width: 20px; height: 20px; border-radius: 50%; cursor: pointer; font-size: .9rem; line-height: 1; display: flex; align-items: center; justify-content: center; transition: var(--trans); padding: 0; }
     .galeria-remove:hover { background: var(--danger); transform: scale(1.1); }
+    .galeria-item { cursor: pointer; }
+    .galeria-item .galeria-remove { cursor: pointer; }
+
+    /* ── Lightbox ── */
+    #lightbox { position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:500;display:none;align-items:center;justify-content:center;flex-direction:column;padding:20px; }
+    #lightbox.open { display:flex; }
+    #lb-nombre { color:#aab;font-size:.82rem;margin-bottom:12px;text-align:center;max-width:90vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+    #lb-img { max-width:90vw;max-height:82vh;object-fit:contain;border-radius:10px;display:none; }
+    #lb-close { position:absolute;top:14px;right:18px;background:rgba(255,255,255,.1);border:none;color:#fff;font-size:1.6rem;cursor:pointer;width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:var(--trans); }
+    #lb-close:hover { background:var(--danger); }
 
     /* ── Grupos selector ── */
     .grupos-selector { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
@@ -671,14 +681,66 @@
           <p class="hint" style="padding:6px 0 10px">Se enviará todos los días a la hora indicada.</p>
         </div>
         <div id="freq-np-mes" style="display:none">
-          <div class="field"><label>Día del mes (1-31)</label><input type="number" id="np-dom" min="1" max="31" value="1" class="cron-num"></div>
+          <div class="field"><label>Día(s) del mes</label><input type="text" id="np-dom" value="1" placeholder="1-20, 25, 28" class="cron-num" style="width:160px"><p class="hint">Rangos: 1-20, 25, 28</p></div>
         </div>
         <div class="field"><label>Mensaje</label><textarea id="np-msg" placeholder="Texto del mensaje automático..." style="min-height:70px"></textarea></div>
-        <div class="form-row2">
-          <div class="field"><label>Grupos WhatsApp (IDs)</label><input type="text" id="np-wa" placeholder="grupo-ventas, grupo-ops"><p class="hint">IDs del config.json</p></div>
-          <div class="field"><label>Grupos Email (IDs)</label><input type="text" id="np-email" placeholder="gerencia, ventas"></div>
+
+        <div class="field">
+          <label>Grupos WhatsApp</label>
+          <div class="grupos-selector">
+            <div class="grupos-header" onclick="toggleGrupos('np-gp-body','np-gp-arrow')">
+              <span class="gh-left"><svg width="15" height="15" viewBox="0 0 32 32" fill="currentColor"><path d="M16 2C8.28 2 2 8.28 2 16c0 2.46.66 4.77 1.8 6.77L2 30l7.45-1.76A13.9 13.9 0 0016 30c7.72 0 14-6.28 14-14S23.72 2 16 2z"/></svg>Grupos</span>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span id="np-gp-cnt" class="grupos-cuenta" style="display:none"></span>
+                <svg id="np-gp-arrow" class="grupos-arrow" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>
+              </div>
+            </div>
+            <div id="np-gp-body" class="grupos-body">
+              <div class="grupos-search"><input type="text" placeholder="🔍  Buscar grupo..." oninput="filtrarGrupos(this,'np-gp-list')"></div>
+              <div id="np-gp-list" class="grupos-lista"></div>
+              <div class="grupos-footer">
+                <button class="link-btn" onclick="selTodosProg('np-gp-list','np-gp-cnt',true)">Todos</button>
+                <button class="link-btn" onclick="selTodosProg('np-gp-list','np-gp-cnt',false)">Limpiar</button>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="field"><label>Asunto email</label><input type="text" id="np-asunto" placeholder="Reporte {{fecha}}"></div>
+
+        <div class="field">
+          <label>Contactos individuales</label>
+          <div class="grupos-selector">
+            <div class="grupos-header" onclick="toggleGrupos('np-ct-body','np-ct-arrow')">
+              <span class="gh-left"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Contactos individuales</span>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span id="np-ct-cnt" class="grupos-cuenta" style="display:none"></span>
+                <svg id="np-ct-arrow" class="grupos-arrow" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>
+              </div>
+            </div>
+            <div id="np-ct-body" class="grupos-body">
+              <div class="grupos-search"><input type="text" placeholder="🔍  Buscar contacto..." oninput="filtrarGrupos(this,'np-ct-list')"></div>
+              <div id="np-ct-list" class="grupos-lista"></div>
+              <div class="grupos-footer">
+                <button class="link-btn" onclick="selTodosProg('np-ct-list','np-ct-cnt',true)">Todos</button>
+                <button class="link-btn" onclick="selTodosProg('np-ct-list','np-ct-cnt',false)">Limpiar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Archivos adjuntos</label>
+          <div class="upload-zone" ondragover="dragOver(event,this)" ondragleave="dragLeave(this)" ondrop="drop(event,'np-files-input','np-archivos-lista')">
+            <input type="file" id="np-files-input" multiple accept="image/*,.pdf,.xlsx,.xls,.docx,.doc,.pptx,.ppt,.zip,.rar,.txt,.csv" onchange="mostrarArchivos(this,'np-archivos-lista')">
+            <div class="upload-zone-icon"><svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+            <p>Arrastra archivos o <span>selecciona</span></p>
+          </div>
+          <div id="np-archivos-lista" class="archivos-lista"></div>
+        </div>
+
+        <div class="form-row2">
+          <div class="field"><label>Grupos Email (IDs)</label><input type="text" id="np-email" placeholder="gerencia, ventas"><p class="hint">IDs definidos en Ajustes</p></div>
+          <div class="field"><label>Asunto email</label><input type="text" id="np-asunto" placeholder="Reporte {{fecha}}"></div>
+        </div>
         <div class="checkbox-row"><input type="checkbox" id="np-activo" checked><label for="np-activo">Activar inmediatamente</label></div>
         <div class="btn-row">
           <button class="btn btn-blue btn-sm" onclick="crearProgramacion()">Guardar</button>
@@ -728,6 +790,18 @@
     </div>
 
   </main>
+</div>
+
+<!-- Lightbox -->
+<div id="lightbox" onclick="cerrarLightbox()">
+  <button id="lb-close" onclick="cerrarLightbox()" title="Cerrar">×</button>
+  <div id="lb-nombre"></div>
+  <img id="lb-img" src="" alt="">
+  <div id="lb-doc" style="display:none;text-align:center;color:#ccc">
+    <svg width="60" height="60" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+    <p style="margin-top:10px;font-size:.9rem">Sin vista previa disponible</p>
+    <a id="lb-dl" href="#" style="color:var(--accent);font-size:.82rem;margin-top:8px;display:inline-block" onclick="event.stopPropagation()">⬇ Abrir archivo</a>
+  </div>
 </div>
 
 <!-- Emoji Picker (shared, repositioned dynamically) -->
@@ -812,28 +886,46 @@ function mostrarArchivos(input, listaId) {
 
 const IMG_EXTS = new Set(['jpg','jpeg','png','gif','webp']);
 
+function abrirVistaPrevia(url, nombre, esImagen) {
+  const lb = document.getElementById('lightbox');
+  document.getElementById('lb-nombre').textContent = nombre;
+  const img = document.getElementById('lb-img');
+  const doc = document.getElementById('lb-doc');
+  if (esImagen) {
+    img.src = url; img.style.display = 'block'; doc.style.display = 'none';
+  } else {
+    img.style.display = 'none'; doc.style.display = 'block';
+    const dl = document.getElementById('lb-dl');
+    dl.href = url; dl.download = nombre;
+  }
+  lb.classList.add('open');
+}
+function cerrarLightbox() { document.getElementById('lightbox').classList.remove('open'); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarLightbox(); });
+
 function renderChips(listaId, inputId) {
   const lista = document.getElementById(listaId);
   const files = archivosMap[inputId] || [];
   if (!files.length) { lista.innerHTML = ''; return; }
   lista.innerHTML = files.map((f, i) => {
     const ext = f.name.split('.').pop().toLowerCase();
-    if (IMG_EXTS.has(ext)) {
-      const url = URL.createObjectURL(f);
-      return `<div class="galeria-item">
+    const url = URL.createObjectURL(f);
+    const esImg = IMG_EXTS.has(ext);
+    if (esImg) {
+      return `<div class="galeria-item" onclick="abrirVistaPrevia('${url}','${f.name}',true)" title="Click para ver">
         <img class="galeria-item-img" src="${url}" alt="${f.name}">
         <div class="galeria-overlay">${f.name}</div>
-        <button class="galeria-remove" onclick="quitarArchivo('${inputId}','${listaId}',${i})" title="Quitar">×</button>
+        <button class="galeria-remove" onclick="event.stopPropagation();quitarArchivo('${inputId}','${listaId}',${i})" title="Quitar">×</button>
       </div>`;
     }
     const color = EXT_ICONS[ext] || '#8899aa';
     const label = ext.toUpperCase().slice(0,4);
-    return `<div class="galeria-item">
+    return `<div class="galeria-item" onclick="abrirVistaPrevia('${url}','${f.name}',false)" title="Click para abrir">
       <div class="galeria-item-doc">
         <div class="galeria-doc-ext" style="background:${color}22;color:${color}">${label}</div>
         <div class="galeria-doc-name">${f.name}</div>
       </div>
-      <button class="galeria-remove" onclick="quitarArchivo('${inputId}','${listaId}',${i})" title="Quitar">×</button>
+      <button class="galeria-remove" onclick="event.stopPropagation();quitarArchivo('${inputId}','${listaId}',${i})" title="Quitar">×</button>
     </div>`;
   }).join('');
 }
@@ -904,6 +996,10 @@ function renderizarGrupos() {
       <label for="ce-${d.id}">${d.nombre} — <span style="color:var(--text2)">${d.direcciones.join(', ')}</span></label>
     </div>`
   ).join('');
+
+  // Listas de grupos/contactos para nueva programación
+  renderListaConSel('np-gp-list', grupos, 'npg-', null, "actualizarCuentaSelector('np-gp-list','np-gp-cnt')");
+  renderListaConSel('np-ct-list', contactos, 'npc-', null, "actualizarCuentaSelector('np-ct-list','np-ct-cnt')");
 
   reaplicarFiltros();
   renderizarGruposEmail();
@@ -1082,8 +1178,55 @@ async function enviarTodo(btn) {
 
 // ── Programaciones ────────────────────────────────────────────────────────────
 
+function progSelectorHtml(pid, destWA) {
+  const selG = (destWA||[]).map(d => `<option value="${d}" selected>`).join('');
+  return `
+  <div class="field">
+    <label>Grupos WhatsApp</label>
+    <div class="grupos-selector">
+      <div class="grupos-header" onclick="toggleGrupos('eg-${pid}-body','eg-${pid}-arrow')">
+        <span class="gh-left"><svg width="15" height="15" viewBox="0 0 32 32" fill="currentColor"><path d="M16 2C8.28 2 2 8.28 2 16c0 2.46.66 4.77 1.8 6.77L2 30l7.45-1.76A13.9 13.9 0 0016 30c7.72 0 14-6.28 14-14S23.72 2 16 2z"/></svg>Grupos</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span id="eg-${pid}-cnt" class="grupos-cuenta" style="display:none"></span>
+          <svg id="eg-${pid}-arrow" class="grupos-arrow" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>
+        </div>
+      </div>
+      <div id="eg-${pid}-body" class="grupos-body">
+        <div class="grupos-search"><input type="text" placeholder="🔍  Buscar grupo..." oninput="filtrarGrupos(this,'eg-${pid}-list')"></div>
+        <div id="eg-${pid}-list" class="grupos-lista"></div>
+        <div class="grupos-footer">
+          <button class="link-btn" onclick="selTodosProg('eg-${pid}-list','eg-${pid}-cnt',true)">Todos</button>
+          <button class="link-btn" onclick="selTodosProg('eg-${pid}-list','eg-${pid}-cnt',false)">Limpiar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="field">
+    <label>Contactos individuales</label>
+    <div class="grupos-selector">
+      <div class="grupos-header" onclick="toggleGrupos('ec-${pid}-body','ec-${pid}-arrow')">
+        <span class="gh-left"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Contactos individuales</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span id="ec-${pid}-cnt" class="grupos-cuenta" style="display:none"></span>
+          <svg id="ec-${pid}-arrow" class="grupos-arrow" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>
+        </div>
+      </div>
+      <div id="ec-${pid}-body" class="grupos-body">
+        <div class="grupos-search"><input type="text" placeholder="🔍  Buscar contacto..." oninput="filtrarGrupos(this,'ec-${pid}-list')"></div>
+        <div id="ec-${pid}-list" class="grupos-lista"></div>
+        <div class="grupos-footer">
+          <button class="link-btn" onclick="selTodosProg('ec-${pid}-list','ec-${pid}-cnt',true)">Todos</button>
+          <button class="link-btn" onclick="selTodosProg('ec-${pid}-list','ec-${pid}-cnt',false)">Limpiar</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderizarProgramaciones() {
-  const formsAbiertos = new Set([...document.querySelectorAll('.prog-edit-form.open')].map(el => el.id));
+  // No re-renderizar si hay un formulario de edición abierto (evita perder cambios no guardados)
+  if (document.querySelector('.prog-edit-form.open')) return;
+
   const grid = document.getElementById('prog-grid');
   if (!estado.programaciones.length) {
     grid.innerHTML = '<p style="color:var(--text2);font-size:.88rem">No hay programaciones. Crea la primera con el botón de arriba.</p>';
@@ -1095,7 +1238,7 @@ function renderizarProgramaciones() {
         <div>
           <div class="prog-badge ${p.activo?'on':'off'}"><span class="prog-badge-dot"></span>${p.activo?'ACTIVO':'INACTIVO'}</div>
           <div class="prog-title">${p.descripcion}</div>
-          <div class="prog-meta"><code style="background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-size:.76rem">${p.cron}</code> &nbsp;·&nbsp; WA: ${p.destinatariosWhatsapp?.join(', ')||'—'} &nbsp;·&nbsp; Email: ${p.destinatariosEmail?.join(', ')||'—'}</div>
+          <div class="prog-meta"><code style="background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-size:.76rem">${p.cron}</code> &nbsp;·&nbsp; ${(p.destinatariosWhatsapp?.length||0)} WA &nbsp;·&nbsp; Email: ${p.destinatariosEmail?.join(', ')||'—'}</div>
           ${p.mensaje?`<div class="prog-msg">"${p.mensaje.slice(0,90)}${p.mensaje.length>90?'…':''}"</div>`:''}
         </div>
         <div class="prog-actions">
@@ -1114,11 +1257,21 @@ function renderizarProgramaciones() {
         <div class="field"><label>Descripción</label><input type="text" id="ed-desc-${p.id}" value="${(p.descripcion||'').replace(/"/g,'&quot;')}"></div>
         ${cronUIHtml('ed-' + p.id, p.cron)}
         <div class="field"><label>Mensaje</label><textarea id="ed-msg-${p.id}" style="min-height:60px">${p.mensaje||''}</textarea></div>
-        <div class="form-row2">
-          <div class="field"><label>Grupos WA (IDs)</label><input type="text" id="ed-wa-${p.id}" value="${(p.destinatariosWhatsapp||[]).join(', ')}"></div>
-          <div class="field"><label>Grupos Email (IDs)</label><input type="text" id="ed-email-${p.id}" value="${(p.destinatariosEmail||[]).join(', ')}"></div>
+        ${progSelectorHtml(p.id, p.destinatariosWhatsapp)}
+        <div class="field">
+          <label>Archivos adjuntos</label>
+          <div class="upload-zone" ondragover="dragOver(event,this)" ondragleave="dragLeave(this)" ondrop="drop(event,'ef-${p.id}','ea-${p.id}')">
+            <input type="file" id="ef-${p.id}" multiple accept="image/*,.pdf,.xlsx,.xls,.docx,.doc,.pptx,.ppt,.zip,.rar,.txt,.csv" onchange="mostrarArchivos(this,'ea-${p.id}')">
+            <div class="upload-zone-icon"><svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+            <p>Arrastra archivos o <span>selecciona</span></p>
+          </div>
+          ${p.archivos?.length ? `<p class="hint" style="margin-top:6px">Guardados: ${p.archivos.join(', ')}</p>` : ''}
+          <div id="ea-${p.id}" class="archivos-lista"></div>
         </div>
-        <div class="field"><label>Asunto email</label><input type="text" id="ed-asunto-${p.id}" value="${p.asuntoEmail||''}"></div>
+        <div class="form-row2">
+          <div class="field"><label>Grupos Email (IDs)</label><input type="text" id="ed-email-${p.id}" value="${(p.destinatariosEmail||[]).join(', ')}"><p class="hint">IDs definidos en Ajustes</p></div>
+          <div class="field"><label>Asunto email</label><input type="text" id="ed-asunto-${p.id}" value="${p.asuntoEmail||''}"></div>
+        </div>
         <div class="checkbox-row"><input type="checkbox" id="ed-activo-${p.id}" ${p.activo?'checked':''}><label for="ed-activo-${p.id}">Activo</label></div>
         <div class="btn-row">
           <button class="btn btn-blue btn-sm" onclick="guardarProg('${p.id}')">Guardar cambios</button>
@@ -1127,7 +1280,20 @@ function renderizarProgramaciones() {
       </div>
     </div>
   `).join('');
-  formsAbiertos.forEach(id => { const el = document.getElementById(id); if (el) el.classList.add('open'); });
+
+  // Poblar selectores de grupos/contactos en cada form de edición
+  const grupos = estado.grupos.length > 0 ? estado.grupos : estado.gruposConfig.map(g => ({nombre:g.nombre,chatId:g.chatId}));
+  const contactos = estado.contactos || [];
+  estado.programaciones.forEach(p => {
+    const destWA = new Set(p.destinatariosWhatsapp || []);
+    renderListaConSel(`eg-${p.id}-list`, grupos, `eg${p.id}-`, destWA, `actualizarCuentaSelector('eg-${p.id}-list','eg-${p.id}-cnt')`);
+    renderListaConSel(`ec-${p.id}-list`, contactos, `ec${p.id}-`, destWA, `actualizarCuentaSelector('ec-${p.id}-list','ec-${p.id}-cnt')`);
+    const totalWA = destWA.size;
+    if (totalWA > 0) {
+      const cnt = document.getElementById(`eg-${p.id}-cnt`);
+      if (cnt) { cnt.textContent = `${totalWA} sel.`; cnt.style.display = ''; }
+    }
+  });
 }
 
 function toggleNuevaProg() { document.getElementById('form-nueva-prog').classList.toggle('open'); }
@@ -1136,15 +1302,33 @@ function toggleEditProg(id) { document.getElementById('edit-'+id).classList.togg
 async function crearProgramacion() {
   const cron = buildCronFromUI('np');
   if (!cron) { toast(false, 'Selecciona al menos un día de la semana'); return; }
+
+  // Subir archivos nuevos primero
+  let archivos = [];
+  const archivosNuevos = archivosMap['np-files-input'] || [];
+  if (archivosNuevos.length) {
+    const fd = new FormData();
+    archivosNuevos.forEach(f => fd.append('archivos', f));
+    try {
+      const r = await fetch('/api/media/upload', { method: 'POST', body: fd });
+      const d = await r.json();
+      archivos = d.archivos || [];
+    } catch(e) { toast(false, 'Error subiendo archivos'); return; }
+  }
+
+  const destWA = [
+    ...[...document.querySelectorAll('#np-gp-list input:checked')].map(i => i.value),
+    ...[...document.querySelectorAll('#np-ct-list input:checked')].map(i => i.value)
+  ];
   const body = {
     descripcion: document.getElementById('np-desc').value,
     cron,
     mensaje: document.getElementById('np-msg').value,
     asuntoEmail: document.getElementById('np-asunto').value,
     activo: document.getElementById('np-activo').checked,
-    destinatariosWhatsapp: document.getElementById('np-wa').value.split(',').map(s=>s.trim()).filter(Boolean),
+    destinatariosWhatsapp: destWA,
     destinatariosEmail: document.getElementById('np-email').value.split(',').map(s=>s.trim()).filter(Boolean),
-    foto: null
+    archivos
   };
   const res = await fetch('/api/programaciones', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
   const data = await res.json();
@@ -1155,14 +1339,36 @@ async function crearProgramacion() {
 async function guardarProg(id) {
   const cron = buildCronFromUI('ed-' + id);
   if (!cron) { toast(false, 'Selecciona al menos un día de la semana'); return; }
+
+  // Subir archivos nuevos y combinar con los guardados existentes
+  let archivosNuevosGuardados = [];
+  const archivosNuevos = archivosMap[`ef-${id}`] || [];
+  if (archivosNuevos.length) {
+    const fd = new FormData();
+    archivosNuevos.forEach(f => fd.append('archivos', f));
+    try {
+      const r = await fetch('/api/media/upload', { method: 'POST', body: fd });
+      const d = await r.json();
+      archivosNuevosGuardados = d.archivos || [];
+    } catch(e) { toast(false, 'Error subiendo archivos'); return; }
+  }
+  const prog = estado.programaciones.find(p => p.id === id);
+  const archivosExistentes = prog?.archivos || [];
+  const archivos = [...archivosExistentes, ...archivosNuevosGuardados];
+
+  const destWA = [
+    ...[...document.querySelectorAll(`#eg-${id}-list input:checked`)].map(i => i.value),
+    ...[...document.querySelectorAll(`#ec-${id}-list input:checked`)].map(i => i.value)
+  ];
   const body = {
     descripcion: document.getElementById(`ed-desc-${id}`).value,
     cron,
     mensaje: document.getElementById(`ed-msg-${id}`).value,
     asuntoEmail: document.getElementById(`ed-asunto-${id}`).value,
     activo: document.getElementById(`ed-activo-${id}`).checked,
-    destinatariosWhatsapp: document.getElementById(`ed-wa-${id}`).value.split(',').map(s=>s.trim()).filter(Boolean),
-    destinatariosEmail: document.getElementById(`ed-email-${id}`).value.split(',').map(s=>s.trim()).filter(Boolean)
+    destinatariosWhatsapp: destWA,
+    destinatariosEmail: document.getElementById(`ed-email-${id}`).value.split(',').map(s=>s.trim()).filter(Boolean),
+    archivos
   };
   const res = await fetch(`/api/programaciones/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   const data = await res.json();
@@ -1277,7 +1483,7 @@ function cronUIHtml(prefix, cronStr) {
     <p class="hint" style="padding:6px 0 10px">Se enviará todos los días a la hora indicada.</p>
   </div>
   <div id="freq-${prefix}-mes"${freqType!=='mes'?' style="display:none"':''}>
-    <div class="field"><label>Día del mes (1-31)</label><input type="number" id="${prefix}-dom" min="1" max="31" value="${dom}" class="cron-num"></div>
+    <div class="field"><label>Día(s) del mes</label><input type="text" id="${prefix}-dom" value="${dom}" placeholder="1-20, 25, 28" class="cron-num" style="width:160px"><p class="hint">Rangos: 1-20, 25, 28</p></div>
   </div>`;
 }
 
@@ -1287,7 +1493,7 @@ function buildCronFromUI(prefix) {
   const mesEl    = document.getElementById(`freq-${prefix}-mes`);
   const semanaEl = document.getElementById(`freq-${prefix}-semana`);
   if (mesEl && mesEl.style.display !== 'none') {
-    const dom = document.getElementById(`${prefix}-dom`)?.value || '1';
+    const dom = (document.getElementById(`${prefix}-dom`)?.value || '1').trim();
     return `${min} ${hora} ${dom} * *`;
   }
   if (semanaEl && semanaEl.style.display !== 'none') {
@@ -1312,6 +1518,51 @@ function setFreqPanel(prefix, tipo, btn) {
 
 function actualizarDiaLabel(cb) {
   cb.closest('.dia-label').classList.toggle('activo', cb.checked);
+}
+
+// ── Selectores de programaciones ─────────────────────────────────────────────
+
+function renderListaConSel(listaId, fuente, prefijo, preSelected, onchange) {
+  const marcados = preSelected
+    ? preSelected
+    : new Set([...document.querySelectorAll(`#${listaId} input:checked`)].map(i => i.value));
+  const el = document.getElementById(listaId);
+  if (!el) return;
+  if (!fuente || fuente.length === 0) {
+    el.innerHTML = `<div class="lista-vacia">Sin datos — presiona ↺ para recargar</div>`;
+    return;
+  }
+  el.innerHTML = fuente.map(g => {
+    const nombre = (g.nombre || '').trim() || '(Sin nombre)';
+    const checked = marcados && marcados.has(g.chatId) ? 'checked' : '';
+    return `<div class="grupo-item" data-nombre="${nombre.toLowerCase().replace(/"/g,'&quot;')}">
+      <input type="checkbox" id="${prefijo}${g.chatId}" value="${g.chatId}" ${checked} onchange="${onchange}">
+      <label for="${prefijo}${g.chatId}">${nombre}</label>
+    </div>`;
+  }).join('');
+}
+
+function actualizarCuentaSelector(listaId, cuentaId) {
+  const n = document.querySelectorAll(`#${listaId} input:checked`).length;
+  const el = document.getElementById(cuentaId);
+  if (!el) return;
+  el.textContent = n > 0 ? `${n} sel.` : '';
+  el.style.display = n > 0 ? '' : 'none';
+}
+
+function selTodosProg(listaId, cuentaId, marcar) {
+  document.querySelectorAll(`#${listaId} .grupo-item`).forEach(item => {
+    if (item.style.display !== 'none') {
+      const cb = item.querySelector('input[type=checkbox]');
+      if (cb) cb.checked = marcar;
+    }
+  });
+  actualizarCuentaSelector(listaId, cuentaId);
+}
+
+function actualizarCuentaProgNueva() {
+  actualizarCuentaSelector('np-gp-list', 'np-gp-cnt');
+  actualizarCuentaSelector('np-ct-list', 'np-ct-cnt');
 }
 
 // ── Ajustes: Grupos de correo ─────────────────────────────────────────────────

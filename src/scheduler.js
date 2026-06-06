@@ -28,6 +28,19 @@ function resolverEmailDestinatarios(idDest, config) {
 
 async function ejecutarProgramacion(prog) {
   const config = leerConfig();
+
+  // Verificar fechas específicas si están configuradas
+  if (prog.fechasEspecificas && prog.fechasEspecificas.length > 0) {
+    const hoy = new Date();
+    const mesHoy = hoy.getMonth() + 1;
+    const diaHoy = hoy.getDate();
+    const entrada = prog.fechasEspecificas.find(e => e.mes === mesHoy);
+    if (!entrada || !entrada.dias.includes(diaHoy)) {
+      console.log(`[cron] Omitido (fecha no coincide hoy): ${prog.descripcion}`);
+      return [];
+    }
+  }
+
   const texto = prog.mensaje.replace('{{fecha}}', resolverFecha());
   const asunto = (prog.asuntoEmail || '').replace('{{fecha}}', resolverFecha());
   const archivos = prog.archivos?.length ? prog.archivos : (prog.foto ? [prog.foto] : []);

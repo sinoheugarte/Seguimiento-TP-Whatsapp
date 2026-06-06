@@ -357,6 +357,7 @@
     .cal-month-chip { padding: 5px 9px; border-radius: 6px; border: 1px solid var(--border); font-size: .74rem; font-weight: 600; cursor: pointer; color: var(--text2); transition: var(--trans); background: var(--bg); user-select: none; }
     .cal-month-chip:hover { border-color: rgba(255,255,255,.2); color: var(--text); }
     .cal-month-chip.selected { background: rgba(0,200,150,.15); border-color: rgba(0,200,150,.4); color: var(--accent); }
+    .cal-month-chip.has-days { border-color: rgba(0,153,255,.35); color: var(--accent2); background: rgba(0,153,255,.07); }
   </style>
 </head>
 <body>
@@ -719,7 +720,10 @@
                 <div class="cal-dow">Lu</div><div class="cal-dow">Ma</div><div class="cal-dow">Mi</div><div class="cal-dow">Ju</div><div class="cal-dow">Vi</div><div class="cal-dow we">Sa</div><div class="cal-dow we">Do</div>
               </div>
               <div class="cal-sep"></div>
-              <div class="cal-section-label">Repetir en los meses:</div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
+                <div class="cal-section-label" style="margin-bottom:0">Repetir en los meses:</div>
+                <button type="button" class="link-btn" onclick="calLimpiar('np')" style="font-size:.72rem">↺ Hoy</button>
+              </div>
               <div class="cal-months" id="cal-months-np"></div>
             </div>
           </div>
@@ -1335,12 +1339,7 @@ function renderizarProgramaciones() {
       if (cnt) { cnt.textContent = `${totalWA} sel.`; cnt.style.display = ''; }
     }
     // Init calendar for this edit form
-    const pArr = (p.cron||'').trim().split(/\s+/);
-    const pDom = pArr[2]||'*', pMon = pArr[3]||'*';
-    const isFeq = pDom !== '*' && pDom.includes(',') && !pDom.includes('-') && (pArr[4]||'*') === '*';
-    initCal(`ed-${p.id}`,
-      isFeq ? pDom.split(',').map(Number) : [],
-      (isFeq && pMon !== '*') ? pMon.split(',').map(Number) : []);
+    initCal(`ed-${p.id}`, p.fechasEspecificas || null);
   });
 }
 
@@ -1368,6 +1367,9 @@ async function crearProgramacion() {
     ...[...document.querySelectorAll('#np-gp-list input:checked')].map(i => i.value),
     ...[...document.querySelectorAll('#np-ct-list input:checked')].map(i => i.value)
   ];
+  const fechasPanel = document.getElementById('freq-np-fechas');
+  const isFechas = fechasPanel && fechasPanel.style.display !== 'none';
+  const fechasEspecificas = isFechas ? buildFechasEspecificas('np') : null;
   const body = {
     descripcion: document.getElementById('np-desc').value,
     cron,
@@ -1376,7 +1378,8 @@ async function crearProgramacion() {
     activo: document.getElementById('np-activo').checked,
     destinatariosWhatsapp: destWA,
     destinatariosEmail: document.getElementById('np-email').value.split(',').map(s=>s.trim()).filter(Boolean),
-    archivos
+    archivos,
+    fechasEspecificas: fechasEspecificas || null
   };
   const res = await fetch('/api/programaciones', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
   const data = await res.json();
@@ -1408,6 +1411,9 @@ async function guardarProg(id) {
     ...[...document.querySelectorAll(`#eg-${id}-list input:checked`)].map(i => i.value),
     ...[...document.querySelectorAll(`#ec-${id}-list input:checked`)].map(i => i.value)
   ];
+  const fechasPanelEd = document.getElementById(`freq-ed-${id}-fechas`);
+  const isFechasEd = fechasPanelEd && fechasPanelEd.style.display !== 'none';
+  const fechasEspecificas = isFechasEd ? buildFechasEspecificas(`ed-${id}`) : null;
   const body = {
     descripcion: document.getElementById(`ed-desc-${id}`).value,
     cron,
@@ -1416,7 +1422,8 @@ async function guardarProg(id) {
     activo: document.getElementById(`ed-activo-${id}`).checked,
     destinatariosWhatsapp: destWA,
     destinatariosEmail: document.getElementById(`ed-email-${id}`).value.split(',').map(s=>s.trim()).filter(Boolean),
-    archivos
+    archivos,
+    fechasEspecificas: fechasEspecificas || null
   };
   const res = await fetch(`/api/programaciones/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   const data = await res.json();
@@ -1543,7 +1550,7 @@ function cronUIHtml(prefix, cronStr) {
   <div id="freq-${prefix}-mes"${freqType!=='mes'?' style="display:none"':''}>
     <div class="field"><label>Día(s) del mes</label><input type="text" id="${prefix}-dom" value="${dom}" placeholder="1-20, 25, 28" class="cron-num" style="width:160px"><p class="hint">Rangos: 1-20, 25, 28</p></div>
   </div>
-  <div id="freq-${prefix}-fechas"${freqType!=='fechas'?' style="display:none"':''} data-pre-d="${preD.join(',')}" data-pre-m="${preM.join(',')}">
+  <div id="freq-${prefix}-fechas"${freqType!=='fechas'?' style="display:none"':''}>
     <div class="field"><label>Fechas de repetición</label>
       <div class="cal-widget">
         <div class="cal-header">
@@ -1555,7 +1562,10 @@ function cronUIHtml(prefix, cronStr) {
           <div class="cal-dow">Lu</div><div class="cal-dow">Ma</div><div class="cal-dow">Mi</div><div class="cal-dow">Ju</div><div class="cal-dow">Vi</div><div class="cal-dow we">Sa</div><div class="cal-dow we">Do</div>
         </div>
         <div class="cal-sep"></div>
-        <div class="cal-section-label">Repetir en los meses:</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
+          <div class="cal-section-label" style="margin-bottom:0">Repetir en los meses:</div>
+          <button type="button" class="link-btn" onclick="calLimpiar('${prefix}')" style="font-size:.72rem">↺ Hoy</button>
+        </div>
         <div class="cal-months" id="cal-months-${prefix}"></div>
       </div>
     </div>
@@ -1574,10 +1584,10 @@ function buildCronFromUI(prefix) {
   }
   if (fechasEl && fechasEl.style.display !== 'none') {
     const state = calState[prefix];
-    if (!state || state.days.size === 0) return null;
-    const dias = [...state.days].sort((a,b) => a-b);
-    const meses = [...state.months].sort((a,b) => a-b);
-    return `${min} ${hora} ${dias.join(',')} ${meses.length ? meses.join(',') : '*'} *`;
+    if (!state) return null;
+    const hasDays = [...(state.monthDays || new Map()).values()].some(s => s.size > 0);
+    if (!hasDays) return null;
+    return `${min} ${hora} * * *`; // scheduler filters by fechasEspecificas
   }
   if (semanaEl && semanaEl.style.display !== 'none') {
     const dias = [...document.querySelectorAll(`#freq-${prefix}-semana input:checked`)].map(cb => cb.value);
@@ -1598,16 +1608,8 @@ function setFreqPanel(prefix, tipo, btn) {
     btn.classList.add('active');
   }
   if (tipo === 'fechas') {
-    if (!calState[prefix]) {
-      // Read pre-selection from data attrs if present
-      const panel = document.getElementById(`freq-${prefix}-fechas`);
-      const preD = panel?.dataset.preD ? panel.dataset.preD.split(',').map(Number).filter(Boolean) : [];
-      const preM = panel?.dataset.preM ? panel.dataset.preM.split(',').map(Number).filter(Boolean) : [];
-      initCal(prefix, preD, preM);
-    } else {
-      renderCal(prefix);
-      renderCalMonths(prefix);
-    }
+    if (!calState[prefix]) initCal(prefix, null);
+    else { renderCal(prefix); renderCalMonths(prefix); }
   }
 }
 
@@ -1616,19 +1618,37 @@ function actualizarDiaLabel(cb) {
 }
 
 // ── Calendar widget ─────────────────────────────────────────────────────────
+// monthDays: Map<mes1-12, Set<dias>>  |  repeatMonths: Set<mes1-12> que sincronizan
+// con el mes actualmente visible. Días de meses NO en repeatMonths son independientes.
 
 const calState = {};
-const CAL_MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const CAL_MESES   = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const CAL_MESES_L = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
-function initCal(prefix, preSelectedDays, preSelectedMonths) {
+function initCal(prefix, fechasEspecificas) {
   const now = new Date();
-  calState[prefix] = {
-    year: now.getFullYear(),
-    month: now.getMonth(),
-    days: new Set((preSelectedDays || []).filter(Boolean)),
-    months: new Set((preSelectedMonths || []).filter(Boolean))
-  };
+  const todayMes = now.getMonth() + 1; // 1-12
+  const todayDia = now.getDate();
+  const monthDays   = new Map();
+  const repeatMonths = new Set();
+  let viewMonth = now.getMonth(); // 0-indexed
+  let viewYear  = now.getFullYear();
+
+  if (fechasEspecificas && fechasEspecificas.length) {
+    // Cargar datos guardados — cada mes es independiente
+    fechasEspecificas.forEach(({mes, dias}) => {
+      monthDays.set(mes, new Set(Array.isArray(dias) ? dias : []));
+    });
+    // Navegar al primer mes con datos
+    const first = [...fechasEspecificas].sort((a,b) => a.mes - b.mes)[0];
+    viewMonth = first.mes - 1;
+  } else {
+    // Default: día de hoy seleccionado, mes de hoy en repeatMonths
+    monthDays.set(todayMes, new Set([todayDia]));
+    repeatMonths.add(todayMes);
+  }
+
+  calState[prefix] = { year: viewYear, month: viewMonth, monthDays, repeatMonths };
   renderCal(prefix);
   renderCalMonths(prefix);
 }
@@ -1636,30 +1656,29 @@ function initCal(prefix, preSelectedDays, preSelectedMonths) {
 function renderCal(prefix) {
   const state = calState[prefix];
   if (!state) return;
-  const { year, month, days } = state;
+  const { year, month, monthDays } = state;
+  const mes  = month + 1; // 1-indexed
+  const days = monthDays.get(mes) || new Set();
   const titleEl = document.getElementById(`cal-title-${prefix}`);
   const gridEl  = document.getElementById(`cal-grid-${prefix}`);
   if (!titleEl || !gridEl) return;
   titleEl.textContent = `${CAL_MESES_L[month]} ${year}`;
 
-  const firstDow = new Date(year, month, 1).getDay(); // 0=Sun
-  const offset = firstDow === 0 ? 6 : firstDow - 1;   // Monday-first offset
+  const firstDow   = new Date(year, month, 1).getDay();
+  const offset     = firstDow === 0 ? 6 : firstDow - 1;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const today = new Date();
   const isToday = d => today.getFullYear()===year && today.getMonth()===month && today.getDate()===d;
 
-  // Keep DOW headers (first 7 children), replace the rest
   const headers = [...gridEl.children].slice(0, 7);
   gridEl.innerHTML = '';
   headers.forEach(h => gridEl.appendChild(h));
 
   for (let i = 0; i < offset; i++) {
-    const el = document.createElement('div');
-    el.className = 'cal-day cal-empty';
-    gridEl.appendChild(el);
+    const el = document.createElement('div'); el.className = 'cal-day cal-empty'; gridEl.appendChild(el);
   }
   for (let d = 1; d <= daysInMonth; d++) {
-    const dow = new Date(year, month, d).getDay(); // 0=Sun,6=Sat
+    const dow  = new Date(year, month, d).getDay();
     const isWe = dow === 0 || dow === 6;
     const isSel = days.has(d);
     const el = document.createElement('div');
@@ -1675,11 +1694,14 @@ function renderCalMonths(prefix) {
   if (!state) return;
   const el = document.getElementById(`cal-months-${prefix}`);
   if (!el) return;
-  const allSelected = state.months.size === 0;
   el.innerHTML = CAL_MESES.map((m,i) => {
-    const num = i + 1;
-    const sel = allSelected || state.months.has(num);
-    return `<div class="cal-month-chip${sel?' selected':''}" onclick="toggleCalMonth('${prefix}',${num})">${m}</div>`;
+    const num     = i + 1;
+    const isRep   = state.repeatMonths.has(num);
+    const hasDays = (state.monthDays.get(num)?.size || 0) > 0;
+    const cls = `cal-month-chip${isRep?' selected':hasDays?' has-days':''}`;
+    const tip = isRep ? 'Sincronizado con mes actual' : hasDays ? 'Tiene días propios' : '';
+    return `<div class="${cls}" onclick="toggleCalMonth('${prefix}',${num})"${tip?` title="${tip}"`:''}>` +
+      `${m}${hasDays && !isRep ? '<sup style="color:var(--accent2);font-size:.55rem;vertical-align:super;line-height:0">●</sup>' : ''}</div>`;
   }).join('');
 }
 
@@ -1695,24 +1717,54 @@ function calNav(prefix, delta) {
 function toggleCalDay(prefix, day) {
   const state = calState[prefix];
   if (!state) return;
-  state.days.has(day) ? state.days.delete(day) : state.days.add(day);
+  const mes = state.month + 1;
+  if (!state.monthDays.has(mes)) state.monthDays.set(mes, new Set());
+  const days = state.monthDays.get(mes);
+  days.has(day) ? days.delete(day) : days.add(day);
+  // Propagar a meses en repeatMonths (excepto el actual)
+  state.repeatMonths.forEach(rm => {
+    if (rm !== mes) state.monthDays.set(rm, new Set(days));
+  });
   renderCal(prefix);
+  renderCalMonths(prefix);
 }
 
 function toggleCalMonth(prefix, num) {
   const state = calState[prefix];
   if (!state) return;
-  if (state.months.size === 0) {
-    // Currently "all months" — clicking deselects just this one
-    for (let i = 1; i <= 12; i++) if (i !== num) state.months.add(i);
-  } else if (state.months.has(num)) {
-    state.months.delete(num);
-    if (state.months.size === 0) state.months = new Set(); // back to "all"
+  const currentMes = state.month + 1;
+  if (state.repeatMonths.has(num)) {
+    state.repeatMonths.delete(num); // se vuelve independiente
   } else {
-    state.months.add(num);
-    if (state.months.size === 12) state.months = new Set(); // all selected = same as "all"
+    // Añadir a repeat: copiar días del mes actual
+    state.repeatMonths.add(num);
+    const currentDays = state.monthDays.get(currentMes) || new Set();
+    state.monthDays.set(num, new Set(currentDays));
   }
   renderCalMonths(prefix);
+}
+
+function calLimpiar(prefix) {
+  const now = new Date();
+  const todayMes = now.getMonth() + 1;
+  const todayDia = now.getDate();
+  if (!calState[prefix]) return;
+  calState[prefix].year  = now.getFullYear();
+  calState[prefix].month = now.getMonth();
+  calState[prefix].monthDays   = new Map([[todayMes, new Set([todayDia])]]);
+  calState[prefix].repeatMonths = new Set([todayMes]);
+  renderCal(prefix);
+  renderCalMonths(prefix);
+}
+
+function buildFechasEspecificas(prefix) {
+  const state = calState[prefix];
+  if (!state) return null;
+  const result = [];
+  state.monthDays.forEach((dias, mes) => {
+    if (dias.size > 0) result.push({ mes, dias: [...dias].sort((a,b)=>a-b) });
+  });
+  return result.sort((a,b)=>a.mes-b.mes);
 }
 
 // ── Selectores de programaciones ─────────────────────────────────────────────
@@ -1959,7 +2011,7 @@ try { initEmojiPicker(); } catch(e) { console.warn('Emoji picker init error:', e
     for (let i = 0; i < 24; i++) { const v = String(i).padStart(2,'0'); hs.innerHTML += `<option value="${v}"${v==='09'?' selected':''}>${v}</option>`; }
     ['00','05','10','15','20','25','30','35','40','45','50','55'].forEach(m => { ms.innerHTML += `<option value="${m}">${m}</option>`; });
   }
-  initCal('np', [], []);
+  initCal('np', null);
 })();
 
 cargarEstado();

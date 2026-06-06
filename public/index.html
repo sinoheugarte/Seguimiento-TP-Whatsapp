@@ -334,6 +334,11 @@
     .dia-label input[type=checkbox] { display: none; }
     .dia-label:hover { border-color: rgba(0,200,150,.4); color: var(--text); }
     .dia-label.activo { background: rgba(0,200,150,.15); border-color: rgba(0,200,150,.4); color: var(--accent); }
+    .dias-mes { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+    .dia-mes-label { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 1px solid var(--border); border-radius: 7px; cursor: pointer; font-size: .8rem; font-weight: 600; color: var(--text2); transition: var(--trans); user-select: none; }
+    .dia-mes-label input[type=checkbox] { display: none; }
+    .dia-mes-label:hover { border-color: rgba(0,200,150,.4); color: var(--text); }
+    .dia-mes-label.activo { background: rgba(0,200,150,.15); border-color: rgba(0,200,150,.4); color: var(--accent); }
   </style>
 </head>
 <body>
@@ -660,6 +665,7 @@
               <button type="button" class="freq-tab active" onclick="setFreqPanel('np','semana',this)">Días</button>
               <button type="button" class="freq-tab" onclick="setFreqPanel('np','diario',this)">Diario</button>
               <button type="button" class="freq-tab" onclick="setFreqPanel('np','mes',this)">Día del mes</button>
+              <button type="button" class="freq-tab" onclick="setFreqPanel('np','fechas',this)">Fechas</button>
             </div>
           </div>
         </div>
@@ -682,6 +688,9 @@
         </div>
         <div id="freq-np-mes" style="display:none">
           <div class="field"><label>Día(s) del mes</label><input type="text" id="np-dom" value="1" placeholder="1-20, 25, 28" class="cron-num" style="width:160px"><p class="hint">Rangos: 1-20, 25, 28</p></div>
+        </div>
+        <div id="freq-np-fechas" style="display:none">
+          <div class="field"><label>Fechas del mes</label><div class="dias-mes" id="np-cal"></div></div>
         </div>
         <div class="field"><label>Mensaje</label><textarea id="np-msg" placeholder="Texto del mensaje automático..." style="min-height:70px"></textarea></div>
 
@@ -1257,7 +1266,6 @@ function renderizarProgramaciones() {
         <div class="field"><label>Descripción</label><input type="text" id="ed-desc-${p.id}" value="${(p.descripcion||'').replace(/"/g,'&quot;')}"></div>
         ${cronUIHtml('ed-' + p.id, p.cron)}
         <div class="field"><label>Mensaje</label><textarea id="ed-msg-${p.id}" style="min-height:60px">${p.mensaje||''}</textarea></div>
-        ${progSelectorHtml(p.id, p.destinatariosWhatsapp)}
         <div class="field">
           <label>Archivos adjuntos</label>
           <div class="upload-zone" ondragover="dragOver(event,this)" ondragleave="dragLeave(this)" ondrop="drop(event,'ef-${p.id}','ea-${p.id}')">
@@ -1268,6 +1276,7 @@ function renderizarProgramaciones() {
           ${p.archivos?.length ? `<p class="hint" style="margin-top:6px">Guardados: ${p.archivos.join(', ')}</p>` : ''}
           <div id="ea-${p.id}" class="archivos-lista"></div>
         </div>
+        ${progSelectorHtml(p.id, p.destinatariosWhatsapp)}
         <div class="form-row2">
           <div class="field"><label>Grupos Email (IDs)</label><input type="text" id="ed-email-${p.id}" value="${(p.destinatariosEmail||[]).join(', ')}"><p class="hint">IDs definidos en Ajustes</p></div>
           <div class="field"><label>Asunto email</label><input type="text" id="ed-asunto-${p.id}" value="${p.asuntoEmail||''}"></div>
@@ -1301,7 +1310,7 @@ function toggleEditProg(id) { document.getElementById('edit-'+id).classList.togg
 
 async function crearProgramacion() {
   const cron = buildCronFromUI('np');
-  if (!cron) { toast(false, 'Selecciona al menos un día de la semana'); return; }
+  if (!cron) { toast(false, 'Selecciona al menos un día o fecha'); return; }
 
   // Subir archivos nuevos primero
   let archivos = [];
@@ -1338,7 +1347,7 @@ async function crearProgramacion() {
 
 async function guardarProg(id) {
   const cron = buildCronFromUI('ed-' + id);
-  if (!cron) { toast(false, 'Selecciona al menos un día de la semana'); return; }
+  if (!cron) { toast(false, 'Selecciona al menos un día o fecha'); return; }
 
   // Subir archivos nuevos y combinar con los guardados existentes
   let archivosNuevosGuardados = [];
@@ -1454,12 +1463,20 @@ function cronUIHtml(prefix, cronStr) {
   const minOk = ['00','05','10','15','20','25','30','35','40','45','50','55'];
   const min = minOk.includes(minRaw) ? minRaw : '00';
   const dom = domP !== '*' ? domP : '1';
-  const freqType = domP !== '*' ? 'mes' : (dowP !== '*' ? 'semana' : 'diario');
+  // Detect freq type: 'fechas' = comma-separated specific days (no ranges), 'mes' = text/range
+  let freqType;
+  if (domP !== '*') {
+    freqType = (domP.includes(',') && !domP.includes('-')) ? 'fechas' : 'mes';
+  } else {
+    freqType = dowP !== '*' ? 'semana' : 'diario';
+  }
   const diasSel = dowP !== '*' ? dowP.split(',').map(d => d.trim()) : [];
+  const diasMesSel = freqType === 'fechas' ? domP.split(',').map(d => d.trim()) : [];
   const diasDef = [{v:'1',l:'Lu'},{v:'2',l:'Ma'},{v:'3',l:'Mi'},{v:'4',l:'Ju'},{v:'5',l:'Vi'},{v:'6',l:'Sa'},{v:'0',l:'Do'}];
   const horaOpts = Array.from({length:24},(_,i)=>{const v=String(i).padStart(2,'0');return`<option value="${v}"${v===hora?' selected':''}>${v}</option>`;}).join('');
   const minOpts = minOk.map(m=>`<option value="${m}"${m===min?' selected':''}>${m}</option>`).join('');
   const diasHtml = diasDef.map(d=>`<label class="dia-label${diasSel.includes(d.v)?' activo':''}"><input type="checkbox" value="${d.v}"${diasSel.includes(d.v)?' checked':''} onchange="actualizarDiaLabel(this)">${d.l}</label>`).join('');
+  const calHtml = Array.from({length:31},(_,i)=>{const d=String(i+1);const sel=diasMesSel.includes(d);return`<label class="dia-mes-label${sel?' activo':''}"><input type="checkbox" value="${d}"${sel?' checked':''} onchange="actualizarDiaMesLabel(this)">${d}</label>`;}).join('');
   return `<div class="form-row2">
     <div class="field"><label>Hora de envío</label>
       <div style="display:flex;gap:6px;align-items:center">
@@ -1473,6 +1490,7 @@ function cronUIHtml(prefix, cronStr) {
         <button type="button" class="freq-tab${freqType==='semana'?' active':''}" onclick="setFreqPanel('${prefix}','semana',this)">Días</button>
         <button type="button" class="freq-tab${freqType==='diario'?' active':''}" onclick="setFreqPanel('${prefix}','diario',this)">Diario</button>
         <button type="button" class="freq-tab${freqType==='mes'?' active':''}" onclick="setFreqPanel('${prefix}','mes',this)">Día del mes</button>
+        <button type="button" class="freq-tab${freqType==='fechas'?' active':''}" onclick="setFreqPanel('${prefix}','fechas',this)">Fechas</button>
       </div>
     </div>
   </div>
@@ -1484,6 +1502,9 @@ function cronUIHtml(prefix, cronStr) {
   </div>
   <div id="freq-${prefix}-mes"${freqType!=='mes'?' style="display:none"':''}>
     <div class="field"><label>Día(s) del mes</label><input type="text" id="${prefix}-dom" value="${dom}" placeholder="1-20, 25, 28" class="cron-num" style="width:160px"><p class="hint">Rangos: 1-20, 25, 28</p></div>
+  </div>
+  <div id="freq-${prefix}-fechas"${freqType!=='fechas'?' style="display:none"':''}>
+    <div class="field"><label>Fechas del mes</label><div class="dias-mes">${calHtml}</div></div>
   </div>`;
 }
 
@@ -1492,9 +1513,16 @@ function buildCronFromUI(prefix) {
   const min  = parseInt(document.getElementById(`${prefix}-minuto`)?.value || '0');
   const mesEl    = document.getElementById(`freq-${prefix}-mes`);
   const semanaEl = document.getElementById(`freq-${prefix}-semana`);
+  const fechasEl = document.getElementById(`freq-${prefix}-fechas`);
   if (mesEl && mesEl.style.display !== 'none') {
     const dom = (document.getElementById(`${prefix}-dom`)?.value || '1').trim();
     return `${min} ${hora} ${dom} * *`;
+  }
+  if (fechasEl && fechasEl.style.display !== 'none') {
+    const dias = [...document.querySelectorAll(`#freq-${prefix}-fechas input:checked`)].map(cb => cb.value);
+    if (!dias.length) return null;
+    dias.sort((a,b) => parseInt(a) - parseInt(b));
+    return `${min} ${hora} ${dias.join(',')} * *`;
   }
   if (semanaEl && semanaEl.style.display !== 'none') {
     const dias = [...document.querySelectorAll(`#freq-${prefix}-semana input:checked`)].map(cb => cb.value);
@@ -1505,7 +1533,7 @@ function buildCronFromUI(prefix) {
 }
 
 function setFreqPanel(prefix, tipo, btn) {
-  ['semana','diario','mes'].forEach(t => {
+  ['semana','diario','mes','fechas'].forEach(t => {
     const el = document.getElementById(`freq-${prefix}-${t}`);
     if (el) el.style.display = t === tipo ? 'block' : 'none';
   });
@@ -1518,6 +1546,10 @@ function setFreqPanel(prefix, tipo, btn) {
 
 function actualizarDiaLabel(cb) {
   cb.closest('.dia-label').classList.toggle('activo', cb.checked);
+}
+
+function actualizarDiaMesLabel(cb) {
+  cb.closest('.dia-mes-label').classList.toggle('activo', cb.checked);
 }
 
 // ── Selectores de programaciones ─────────────────────────────────────────────
@@ -1756,13 +1788,18 @@ document.addEventListener('click', (e) => {
 
 try { initEmojiPicker(); } catch(e) { console.warn('Emoji picker init error:', e); }
 
-// Poblar selects hora/minuto del formulario nueva programación
+// Poblar selects hora/minuto y calendario del formulario nueva programación
 (function() {
   const hs = document.getElementById('np-hora');
   const ms = document.getElementById('np-minuto');
-  if (!hs || !ms) return;
-  for (let i = 0; i < 24; i++) { const v = String(i).padStart(2,'0'); hs.innerHTML += `<option value="${v}"${v==='09'?' selected':''}>${v}</option>`; }
-  ['00','05','10','15','20','25','30','35','40','45','50','55'].forEach(m => { ms.innerHTML += `<option value="${m}">${m}</option>`; });
+  if (hs && ms) {
+    for (let i = 0; i < 24; i++) { const v = String(i).padStart(2,'0'); hs.innerHTML += `<option value="${v}"${v==='09'?' selected':''}>${v}</option>`; }
+    ['00','05','10','15','20','25','30','35','40','45','50','55'].forEach(m => { ms.innerHTML += `<option value="${m}">${m}</option>`; });
+  }
+  const cal = document.getElementById('np-cal');
+  if (cal) {
+    cal.innerHTML = Array.from({length:31},(_,i)=>{const d=i+1;return`<label class="dia-mes-label"><input type="checkbox" value="${d}" onchange="actualizarDiaMesLabel(this)">${d}</label>`;}).join('');
+  }
 })();
 
 cargarEstado();

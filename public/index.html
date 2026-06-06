@@ -409,9 +409,9 @@
                 <svg width="15" height="15" viewBox="0 0 32 32" fill="currentColor"><path d="M16 2C8.28 2 2 8.28 2 16c0 2.46.66 4.77 1.8 6.77L2 30l7.45-1.76A13.9 13.9 0 0016 30c7.72 0 14-6.28 14-14S23.72 2 16 2z"/></svg>
                 Grupos
               </span>
-              <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
+              <div style="display:flex;align-items:center;gap:8px">
                 <span id="c-grupos-cuenta" class="grupos-cuenta" style="display:none"></span>
-                <button class="reload-btn" onclick="recargar(this)" title="Recargar grupos">
+                <button class="reload-btn" onclick="event.stopPropagation(); recargar(this)" title="Recargar grupos">
                   <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
                 </button>
                 <svg id="c-grupos-arrow" class="grupos-arrow" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>
@@ -436,9 +436,9 @@
                 <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                 Contactos individuales
               </span>
-              <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
+              <div style="display:flex;align-items:center;gap:8px">
                 <span id="c-contactos-cuenta" class="grupos-cuenta" style="display:none"></span>
-                <button class="reload-btn" onclick="recargar(this)" title="Recargar contactos">
+                <button class="reload-btn" onclick="event.stopPropagation(); recargar(this)" title="Recargar contactos">
                   <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
                 </button>
                 <svg id="c-contactos-arrow" class="grupos-arrow" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>
@@ -496,9 +496,9 @@
                 <svg width="15" height="15" viewBox="0 0 32 32" fill="currentColor"><path d="M16 2C8.28 2 2 8.28 2 16c0 2.46.66 4.77 1.8 6.77L2 30l7.45-1.76A13.9 13.9 0 0016 30c7.72 0 14-6.28 14-14S23.72 2 16 2z"/></svg>
                 Grupos
               </span>
-              <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
+              <div style="display:flex;align-items:center;gap:8px">
                 <span id="wsp-grupos-cuenta" class="grupos-cuenta" style="display:none"></span>
-                <button class="reload-btn" onclick="recargar(this)" title="Recargar grupos">
+                <button class="reload-btn" onclick="event.stopPropagation(); recargar(this)" title="Recargar grupos">
                   <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
                 </button>
                 <svg id="wsp-grupos-arrow" class="grupos-arrow" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>
@@ -522,9 +522,9 @@
                 <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                 Contactos individuales
               </span>
-              <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
+              <div style="display:flex;align-items:center;gap:8px">
                 <span id="wsp-contactos-cuenta" class="grupos-cuenta" style="display:none"></span>
-                <button class="reload-btn" onclick="recargar(this)" title="Recargar contactos">
+                <button class="reload-btn" onclick="event.stopPropagation(); recargar(this)" title="Recargar contactos">
                   <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
                 </button>
                 <svg id="wsp-contactos-arrow" class="grupos-arrow" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>
@@ -1258,10 +1258,13 @@ async function guardarGrupoEmail(id) {
 
 async function eliminarGrupoEmail(id) {
   if (!confirm('¿Eliminar este grupo de correo?')) return;
-  const res = await fetch(`/api/ajustes/grupos-email/${id}`, { method: 'DELETE' });
-  const data = await res.json();
-  if (data.ok) { await cargarEstado(); toast(true, 'Grupo eliminado'); }
-  else toast(false, data.error);
+  try {
+    const res = await fetch(`/api/ajustes/grupos-email/${id}`, { method: 'DELETE' });
+    if (!res.ok) { toast(false, 'Error ' + res.status + ' — reinicia el servidor con npm start'); return; }
+    const data = await res.json();
+    if (data.ok) { await cargarEstado(); toast(true, 'Grupo eliminado'); }
+    else toast(false, data.error);
+  } catch (e) { toast(false, 'No se pudo conectar con el servidor'); }
 }
 
 // ── Emoji Picker ──────────────────────────────────────────────────────────────

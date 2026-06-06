@@ -27,10 +27,15 @@ app.use(express.static(path.join(__dirname, '../public')));
 function procesarArchivos(files) {
   if (!files || files.length === 0) return [];
   return files.map(f => {
-    const ext = path.extname(f.originalname) || '';
-    const nuevoNombre = f.filename + ext;
-    fs.renameSync(f.path, path.join('media', nuevoNombre));
-    return nuevoNombre;
+    const nombreSeguro = path.basename(f.originalname).replace(/[^\w.\-áéíóúüñÁÉÍÓÚÜÑ ]/g, '_');
+    let destino = path.join('media', nombreSeguro);
+    if (fs.existsSync(destino)) {
+      const ext = path.extname(nombreSeguro);
+      const base = nombreSeguro.slice(0, -ext.length || undefined);
+      destino = path.join('media', `${base}_${Date.now()}${ext}`);
+    }
+    fs.renameSync(f.path, destino);
+    return path.basename(destino);
   });
 }
 

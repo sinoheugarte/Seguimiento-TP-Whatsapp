@@ -185,8 +185,12 @@ async function inicializar() {
 
   socket.ev.on('groups.upsert', (grupos) => {
     for (const g of grupos) {
+      const nombre = g.subject || '';
       const existe = gruposCache.find((x) => x.chatId === g.id);
-      if (!existe) gruposCache.push({ nombre: g.subject || '', chatId: g.id });
+      if (existe) { existe.nombre = nombre; }
+      else gruposCache.push({ nombre, chatId: g.id });
+      // Actualizar nombre en chatsRecientes si ya tenía el grupo con ID crudo
+      if (chatsRecientes.has(g.id) && nombre) chatsRecientes.get(g.id).nombre = nombre;
     }
   });
 
@@ -373,4 +377,18 @@ async function cerrarSesion() {
   setTimeout(inicializar, 1500);
 }
 
-module.exports = { inicializar, enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion, getMensajesStore: () => mensajesStore, getChatsRecientes: () => chatsRecientes, setSseBroadcast };
+module.exports = { inicializar, enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion, getMensajesStore: () => mensajesStore, getChatsRecientes, setSseBroadcast };
+
+function getChatsRecientes() {
+  // Re-resolver nombres en cada consulta usando el cache actual (puede haber llegado después del primer mensaje)
+  for (const [chatId, chat] of chatsRecientes) {
+    if (chatId.endsWith('@g.us')) {
+      const g = gruposCache.find(x => x.chatId === chatId);
+      if (g?.nombre) chat.nombre = g.nombre;
+    } else {
+      const n = contactosCache.get(chatId);
+      if (n) chat.nombre = n;
+    }
+  }
+  return chatsRecientes;
+}

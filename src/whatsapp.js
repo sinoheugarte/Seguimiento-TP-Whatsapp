@@ -3,6 +3,7 @@ const qrcode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
 const P = require('pino');
+const { procesarMensaje } = require('./agent');
 
 let socket = null;
 let listo = false;
@@ -151,6 +152,28 @@ async function inicializar() {
       if (!c.id || !c.id.endsWith('@s.whatsapp.net')) continue;
       if (!c.name) continue;
       contactosCache.set(c.id, c.name);
+    }
+  });
+
+  // Agente IA: responder mensajes entrantes
+  socket.ev.on('messages.upsert', async ({ messages, type }) => {
+    if (type !== 'notify') return;
+    for (const msg of messages) {
+      if (msg.key.fromMe) continue;
+      if (!msg.message) continue;
+      const chatId = msg.key.remoteJid;
+      if (!chatId) continue;
+      const texto = msg.message.conversation ||
+        msg.message.extendedTextMessage?.text ||
+        msg.message.imageMessage?.caption ||
+        msg.message.videoMessage?.caption || '';
+      if (!texto.trim()) continue;
+      try {
+        const respuesta = await procesarMensaje(chatId, texto);
+        if (respuesta) await socket.sendMessage(chatId, { text: respuesta });
+      } catch (err) {
+        console.error('[Agente] Error procesando mensaje:', err.message);
+      }
     }
   });
 

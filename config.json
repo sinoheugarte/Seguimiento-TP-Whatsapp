@@ -27,6 +27,15 @@
       }
     ]
   },
+  "agente": {
+    "activo": false,
+    "apiKey": "",
+    "modelo": "claude-haiku-4-5-20251001",
+    "instruccionesExtra": "",
+    "filtro": "todos",
+    "chatsFiltros": [],
+    "respuestasRapidas": []
+  },
   "programaciones": [
     {
       "id": "reporte-lunes",

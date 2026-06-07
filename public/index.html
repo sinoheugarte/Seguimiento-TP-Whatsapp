@@ -954,6 +954,9 @@
               <button class="btn btn-ghost btn-sm" onclick="toggleApiKeyVisibility()" title="Ver/ocultar">
                 <svg id="apikey-eye" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               </button>
+              <button class="btn btn-ghost btn-sm" onclick="limpiarApiKey()" title="Limpiar API Key" style="color:var(--danger)">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+              </button>
             </div>
             <p class="hint" id="agente-apikey-hint">Obténla en <strong>console.anthropic.com</strong></p>
           </div>
@@ -2266,10 +2269,15 @@ async function initPanelAgente() {
     const data = await res.json();
     // Configuración
     document.getElementById('agente-activo').checked = !!data.activo;
-    document.getElementById('agente-apikey').value = data.apiKey || '';
     document.getElementById('agente-instrucciones').value = data.instruccionesExtra || '';
+    // Cargar claves por proveedor en cache local
+    const apiKeys = data.apiKeys || {};
+    _apiKeysCache.anthropic = apiKeys.anthropic ?? data.apiKey ?? '';
+    _apiKeysCache.gemini    = apiKeys.gemini    ?? '';
+    _apiKeysCache.groq      = apiKeys.groq      ?? '';
     // Proveedor y modelo
     const proveedor = data.proveedor || 'anthropic';
+    _prevProveedor = proveedor;
     document.getElementById('agente-proveedor').value = proveedor;
     onProveedorChange();
     if (data.modelo) document.getElementById('agente-modelo').value = data.modelo;
@@ -2304,6 +2312,9 @@ async function guardarConfigAgenteToggle() {
 }
 
 // ── Proveedor y modelos ──────────────────────────────────────────────────────
+let _apiKeysCache = { anthropic: '', gemini: '', groq: '' };
+let _prevProveedor = 'anthropic';
+
 const MODELOS_PROVEEDOR = {
   anthropic: [
     { val:'claude-haiku-4-5-20251001', label:'Claude Haiku — rápido · económico' },
@@ -2328,7 +2339,16 @@ const APIKEY_INFO = {
 };
 
 function onProveedorChange() {
+  // Guardar la key actual en el slot del proveedor anterior
+  _apiKeysCache[_prevProveedor] = document.getElementById('agente-apikey').value;
+
   const prov = document.getElementById('agente-proveedor').value;
+  _prevProveedor = prov;
+
+  // Cargar la key guardada para el nuevo proveedor
+  document.getElementById('agente-apikey').value = _apiKeysCache[prov] || '';
+
+  // Actualizar modelos y hints
   const sel = document.getElementById('agente-modelo');
   const modelos = MODELOS_PROVEEDOR[prov] || [];
   sel.innerHTML = modelos.map(m => `<option value="${m.val}">${m.label}</option>`).join('');
@@ -2375,9 +2395,11 @@ function getFiltroSeleccionados(tipo) {
 }
 
 async function guardarConfigAgente() {
-  const apiKey = document.getElementById('agente-apikey').value.trim();
-  const modelo = document.getElementById('agente-modelo').value;
   const proveedor = document.getElementById('agente-proveedor').value;
+  // Guardar la key actual en el cache antes de persistir
+  _apiKeysCache[proveedor] = document.getElementById('agente-apikey').value.trim();
+  const apiKeys = { ..._apiKeysCache };
+  const modelo = document.getElementById('agente-modelo').value;
   const instruccionesExtra = document.getElementById('agente-instrucciones').value;
   const filtro = document.querySelector('input[name="agente-filtro"]:checked')?.value || 'todos';
   const activo = document.getElementById('agente-activo').checked;
@@ -2386,11 +2408,17 @@ async function guardarConfigAgente() {
   if (filtro === 'privados') chatsFiltros = getFiltroSeleccionados('privados');
   const res = await fetch('/api/agente/config', {
     method:'PUT', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ activo, apiKey, modelo, proveedor, instruccionesExtra, filtro, chatsFiltros })
+    body: JSON.stringify({ activo, apiKeys, modelo, proveedor, instruccionesExtra, filtro, chatsFiltros })
   });
   const data = await res.json();
   if (data.ok) { actualizarPillAgente(activo); toast(true, 'Configuración del agente guardada'); }
   else toast(false, data.error);
+}
+
+function limpiarApiKey() {
+  const prov = document.getElementById('agente-proveedor').value;
+  document.getElementById('agente-apikey').value = '';
+  _apiKeysCache[prov] = '';
 }
 
 async function limpiarHistorialAgente() {

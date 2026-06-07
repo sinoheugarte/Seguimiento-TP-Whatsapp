@@ -107,8 +107,11 @@ async function procesarMensaje(chatId, texto) {
     }
   }
 
-  if (!agente.apiKey) return null;
+  const proveedor = agente.proveedor || 'anthropic';
+  const apiKey = agente.apiKeys?.[proveedor] || agente.apiKey || '';
+  if (!apiKey) return null;
 
+  const agenteConKey = { ...agente, apiKey };
   const systemPrompt = await buildSystemPrompt(agente);
   if (!conversationHistory.has(chatId)) conversationHistory.set(chatId, []);
   const history = conversationHistory.get(chatId);
@@ -116,11 +119,10 @@ async function procesarMensaje(chatId, texto) {
   if (history.length > MAX_HISTORY) history.splice(0, history.length - MAX_HISTORY);
 
   try {
-    const proveedor = agente.proveedor || 'anthropic';
     let respuesta;
-    if (proveedor === 'gemini') respuesta = await llamarGemini(agente, systemPrompt, history);
-    else if (proveedor === 'groq') respuesta = await llamarGroq(agente, systemPrompt, history);
-    else respuesta = await llamarAnthropic(agente, systemPrompt, history);
+    if (proveedor === 'gemini') respuesta = await llamarGemini(agenteConKey, systemPrompt, history);
+    else if (proveedor === 'groq') respuesta = await llamarGroq(agenteConKey, systemPrompt, history);
+    else respuesta = await llamarAnthropic(agenteConKey, systemPrompt, history);
     history.push({ role: 'assistant', content: respuesta });
     console.log(`[Agente] Respondido (${proveedor}) → ${chatId}`);
     return respuesta;

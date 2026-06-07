@@ -30,7 +30,7 @@
   "agente": {
     "activo": false,
     "proveedor": "anthropic",
-    "apiKey": "",
+    "apiKeys": { "anthropic": "", "gemini": "", "groq": "" },
     "modelo": "claude-haiku-4-5-20251001",
     "instruccionesExtra": "",
     "filtro": "todos",

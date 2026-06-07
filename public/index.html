@@ -1658,6 +1658,11 @@ async function crearProgramacion() {
     // Resetear horarios a un solo campo
     const npH = document.getElementById('np-horarios');
     if (npH) { npH.innerHTML = crearHorarioItemHtml('np', '09', '00'); actualizarBotonesEliminar('np'); }
+    // Resetear días de la semana
+    document.querySelectorAll('#freq-np-semana input[type="checkbox"]').forEach(cb => {
+      cb.checked = false;
+      cb.closest('.dia-label')?.classList.remove('activo');
+    });
     await cargarEstado();
     toast(true,'Programación creada');
   } else toast(false, data.error);
@@ -2477,9 +2482,6 @@ function onFiltroChange() {
   const showP = filtro === 'privados' || filtro === 'ambos';
   document.getElementById('filtro-grupos-panel').style.display   = showG ? '' : 'none';
   document.getElementById('filtro-privados-panel').style.display = showP ? '' : 'none';
-  // Auto-abrir el cuerpo la primera vez que aparece
-  if (showG) { document.getElementById('filtro-grupos-body').classList.add('abierto'); document.getElementById('filtro-grupos-arrow').classList.add('open'); }
-  if (showP) { document.getElementById('filtro-privados-body').classList.add('abierto'); document.getElementById('filtro-privados-arrow').classList.add('open'); }
 }
 
 function populateFiltroLista(tipo, items, selected) {

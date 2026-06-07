@@ -973,24 +973,46 @@
               </label>
             </div>
 
-            <div id="filtro-grupos-panel" class="filtro-panel" style="display:none">
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-                <span class="filtro-panel-header" style="flex:1">Grupos — <strong id="filtro-grupos-contador" style="color:var(--accent)">ninguno seleccionado</strong></span>
-                <button class="btn btn-ghost btn-sm" style="padding:3px 9px;font-size:.76rem" onclick="selTodosFiltro('grupos')">Todos</button>
-                <button class="btn btn-ghost btn-sm" style="padding:3px 9px;font-size:.76rem" onclick="limpiarFiltroLista('grupos')">Limpiar</button>
+            <div id="filtro-grupos-panel" class="grupos-selector" style="display:none;margin-top:10px">
+              <div class="grupos-header" onclick="toggleGrupos('filtro-grupos-body','filtro-grupos-arrow')">
+                <span class="gh-left">
+                  <svg width="15" height="15" viewBox="0 0 32 32" fill="currentColor"><path d="M16 2C8.28 2 2 8.28 2 16c0 2.46.66 4.77 1.8 6.77L2 30l7.45-1.76A13.9 13.9 0 0016 30c7.72 0 14-6.28 14-14S23.72 2 16 2z"/></svg>
+                  Grupos WhatsApp
+                </span>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span id="filtro-grupos-contador" class="grupos-cuenta" style="display:none"></span>
+                  <svg id="filtro-grupos-arrow" class="grupos-arrow" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>
+                </div>
               </div>
-              <input type="text" id="filtro-grupos-search" placeholder="🔍 Buscar grupo..." style="margin-bottom:0" oninput="filtrarFiltroLista('grupos',this.value)">
-              <div id="filtro-grupos-list" class="filtro-chat-list"></div>
+              <div id="filtro-grupos-body" class="grupos-body">
+                <div class="grupos-search"><input type="text" id="filtro-grupos-search" placeholder="🔍 Buscar grupo..." oninput="filtrarFiltroLista('grupos',this.value)"></div>
+                <div id="filtro-grupos-list" class="grupos-lista"></div>
+                <div class="grupos-footer">
+                  <button class="link-btn" onclick="selTodosFiltro('grupos')">Todos</button>
+                  <button class="link-btn" onclick="limpiarFiltroLista('grupos')">Limpiar</button>
+                </div>
+              </div>
             </div>
 
-            <div id="filtro-privados-panel" class="filtro-panel" style="display:none">
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-                <span class="filtro-panel-header" style="flex:1">Contactos — <strong id="filtro-privados-contador" style="color:var(--accent)">ninguno seleccionado</strong></span>
-                <button class="btn btn-ghost btn-sm" style="padding:3px 9px;font-size:.76rem" onclick="selTodosFiltro('privados')">Todos</button>
-                <button class="btn btn-ghost btn-sm" style="padding:3px 9px;font-size:.76rem" onclick="limpiarFiltroLista('privados')">Limpiar</button>
+            <div id="filtro-privados-panel" class="grupos-selector" style="display:none;margin-top:10px">
+              <div class="grupos-header" onclick="toggleGrupos('filtro-privados-body','filtro-privados-arrow')">
+                <span class="gh-left">
+                  <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  Contactos individuales
+                </span>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span id="filtro-privados-contador" class="grupos-cuenta" style="display:none"></span>
+                  <svg id="filtro-privados-arrow" class="grupos-arrow" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>
+                </div>
               </div>
-              <input type="text" id="filtro-privados-search" placeholder="🔍 Buscar contacto..." style="margin-bottom:0" oninput="filtrarFiltroLista('privados',this.value)">
-              <div id="filtro-privados-list" class="filtro-chat-list"></div>
+              <div id="filtro-privados-body" class="grupos-body">
+                <div class="grupos-search"><input type="text" id="filtro-privados-search" placeholder="🔍 Buscar contacto..." oninput="filtrarFiltroLista('privados',this.value)"></div>
+                <div id="filtro-privados-list" class="grupos-lista"></div>
+                <div class="grupos-footer">
+                  <button class="link-btn" onclick="selTodosFiltro('privados')">Todos</button>
+                  <button class="link-btn" onclick="limpiarFiltroLista('privados')">Limpiar</button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -2381,31 +2403,35 @@ function onProveedorChange() {
 // ── Filtro de chats ──────────────────────────────────────────────────────────
 function onFiltroChange() {
   const filtro = document.querySelector('input[name="agente-filtro"]:checked')?.value || 'todos';
-  document.getElementById('filtro-grupos-panel').style.display   = (filtro === 'grupos'   || filtro === 'ambos') ? '' : 'none';
-  document.getElementById('filtro-privados-panel').style.display = (filtro === 'privados' || filtro === 'ambos') ? '' : 'none';
+  const showG = filtro === 'grupos'   || filtro === 'ambos';
+  const showP = filtro === 'privados' || filtro === 'ambos';
+  document.getElementById('filtro-grupos-panel').style.display   = showG ? '' : 'none';
+  document.getElementById('filtro-privados-panel').style.display = showP ? '' : 'none';
+  // Auto-abrir el cuerpo la primera vez que aparece
+  if (showG) { document.getElementById('filtro-grupos-body').classList.add('abierto'); document.getElementById('filtro-grupos-arrow').classList.add('open'); }
+  if (showP) { document.getElementById('filtro-privados-body').classList.add('abierto'); document.getElementById('filtro-privados-arrow').classList.add('open'); }
 }
 
 function populateFiltroLista(tipo, items, selected) {
   const cont = document.getElementById(`filtro-${tipo}-list`);
   if (!items.length) {
-    cont.innerHTML = `<p style="color:var(--text2);font-size:.82rem;padding:8px 4px">No hay ${tipo === 'grupos' ? 'grupos' : 'contactos'} disponibles — conecta WhatsApp primero.</p>`;
+    cont.innerHTML = `<div class="lista-vacia">No hay ${tipo === 'grupos' ? 'grupos' : 'contactos'} disponibles — conectá WhatsApp primero.</div>`;
     actualizarContadorFiltro(tipo);
     return;
   }
   cont.innerHTML = items.map(item => `
-    <label class="filtro-chat-item">
-      <input type="checkbox" value="${escHTML(item.chatId)}" ${selected.has(item.chatId) ? 'checked' : ''} onchange="actualizarContadorFiltro('${tipo}')">
-      <span>${escHTML(item.nombre || item.chatId)}</span>
-    </label>`).join('');
+    <div class="grupo-item" data-nombre="${escHTML((item.nombre || item.chatId).toLowerCase())}">
+      <input type="checkbox" id="flt-${tipo}-${escHTML(item.chatId)}" value="${escHTML(item.chatId)}" ${selected.has(item.chatId) ? 'checked' : ''} onchange="actualizarContadorFiltro('${tipo}')">
+      <label for="flt-${tipo}-${escHTML(item.chatId)}">${escHTML(item.nombre || item.chatId)}</label>
+    </div>`).join('');
   actualizarContadorFiltro(tipo);
 }
 
 function actualizarContadorFiltro(tipo) {
   const cont = document.getElementById(`filtro-${tipo}-list`);
-  const total   = cont.querySelectorAll('input[type="checkbox"]').length;
   const checked = cont.querySelectorAll('input[type="checkbox"]:checked').length;
-  const el = document.getElementById(`filtro-${tipo}-contador`);
-  if (el) el.textContent = checked > 0 ? `${checked} de ${total} seleccionados` : 'ninguno seleccionado';
+  const badge = document.getElementById(`filtro-${tipo}-contador`);
+  if (badge) { badge.textContent = checked > 0 ? `${checked} sel.` : ''; badge.style.display = checked > 0 ? '' : 'none'; }
   actualizarAmbosDisponible();
 }
 
@@ -2430,7 +2456,8 @@ function actualizarAmbosDisponible() {
 }
 
 function selTodosFiltro(tipo) {
-  document.querySelectorAll(`#filtro-${tipo}-list input[type="checkbox"]`).forEach(cb => { cb.checked = true; });
+  // Solo marca los ítems visibles (no filtrados por búsqueda)
+  document.querySelectorAll(`#filtro-${tipo}-list .grupo-item:not([style*="none"]) input[type="checkbox"]`).forEach(cb => { cb.checked = true; });
   actualizarContadorFiltro(tipo);
 }
 
@@ -2442,9 +2469,8 @@ function limpiarFiltroLista(tipo) {
 function filtrarFiltroLista(tipo, q) {
   const cont = document.getElementById(`filtro-${tipo}-list`);
   const ql = q.toLowerCase();
-  cont.querySelectorAll('.filtro-chat-item').forEach(item => {
-    const nombre = item.querySelector('span')?.textContent?.toLowerCase() || '';
-    item.style.display = !q || nombre.includes(ql) ? '' : 'none';
+  cont.querySelectorAll('.grupo-item').forEach(item => {
+    item.style.display = !q || (item.dataset.nombre || '').includes(ql) ? '' : 'none';
   });
 }
 

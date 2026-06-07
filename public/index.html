@@ -991,7 +991,7 @@
               <input type="text" id="rr-keywords-input" placeholder="Ej: precio, cotización, tarifa, cuánto cuesta">
             </div>
             <div class="field">
-              <label>Respuesta automática</label>
+              <div class="label-row"><label>Respuesta automática</label><button class="emoji-trigger" type="button" onclick="abrirEmoji('rr-respuesta-input',this)" title="Insertar emoji">😊</button></div>
               <textarea id="rr-respuesta-input" rows="3" placeholder="Ej: Hola! Para enviarte una cotización necesitamos: origen, destino, tipo de carga y peso estimado. ¿Nos los puedes indicar?"></textarea>
             </div>
             <div class="btn-row">
@@ -2337,7 +2337,7 @@ function renderRR(lista) {
           <input type="text" id="rr-kw-edit-${rr.id}" value="${escHTML((rr.palabrasClave||[]).join(', '))}" style="margin-top:4px">
         </div>
         <div class="field" style="margin-bottom:8px">
-          <label style="font-size:.8rem">Respuesta</label>
+          <div class="label-row"><label style="font-size:.8rem">Respuesta</label><button class="emoji-trigger" type="button" onclick="abrirEmoji('rr-resp-edit-${rr.id}',this)" title="Insertar emoji">😊</button></div>
           <textarea id="rr-resp-edit-${rr.id}" rows="3" style="margin-top:4px">${escHTML(rr.respuesta)}</textarea>
         </div>
         <div class="btn-row">

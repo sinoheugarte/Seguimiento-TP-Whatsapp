@@ -17,17 +17,54 @@ const lidToJid = new Map(); // @lid → @s.whatsapp.net (mismo contacto, distint
 
 const mensajesStore = new Map(); // chatId -> Message[]
 const chatsRecientes = new Map(); // chatId -> {chatId, nombre, ultimo, ts, esGrupo}
-const MAX_MSGS_POR_CHAT = 80;
+const MAX_MSGS_POR_CHAT = 500;
 let _sseBroadcast = null;
 function setSseBroadcast(fn) { _sseBroadcast = fn; }
 
 const AUTH_DIR = path.resolve('.baileys_auth');
 const CONTACTS_FILE = path.resolve('.baileys_auth', 'contacts-cache.json');
+const MESSAGES_CACHE_FILE = path.resolve('.baileys_auth', 'messages-cache.json');
 const CHAT_MEDIA_DIR = path.resolve(__dirname, '../public/chat-media');
 
 function log(msg) {
   console.log('[WhatsApp]', msg);
 }
+
+// ── Persistencia de mensajes ─────────────────────────────────────────────────
+
+function cargarMensajesCache() {
+  try {
+    if (!fs.existsSync(MESSAGES_CACHE_FILE)) return;
+    const data = JSON.parse(fs.readFileSync(MESSAGES_CACHE_FILE, 'utf8'));
+    if (data.mensajes) {
+      for (const [k, v] of Object.entries(data.mensajes)) {
+        mensajesStore.set(k, Array.isArray(v) ? v : []);
+      }
+    }
+    if (data.chats) {
+      for (const [k, v] of Object.entries(data.chats)) {
+        chatsRecientes.set(k, v);
+      }
+    }
+    const totalMsgs = Array.from(mensajesStore.values()).reduce((s, a) => s + a.length, 0);
+    log(`Mensajes cargados desde cache: ${totalMsgs} en ${mensajesStore.size} chats`);
+  } catch (_) {}
+}
+
+let _saveMsgsTimer = null;
+function guardarMensajesCache() {
+  clearTimeout(_saveMsgsTimer);
+  _saveMsgsTimer = setTimeout(() => {
+    try {
+      const obj = { mensajes: {}, chats: {} };
+      for (const [k, v] of mensajesStore) obj.mensajes[k] = v;
+      for (const [k, v] of chatsRecientes) obj.chats[k] = v;
+      fs.writeFileSync(MESSAGES_CACHE_FILE, JSON.stringify(obj), 'utf8');
+    } catch (_) {}
+  }, 3000);
+}
+
+// ── Cache de contactos ────────────────────────────────────────────────────────
 
 // Carga el cache de contactos desde disco al iniciar
 function cargarContactosDescoCache() {
@@ -154,11 +191,13 @@ async function guardarMensaje(msg) {
   const ultimoTexto = texto || (mediaTipo === 'imagen' ? '📷 Imagen' : mediaTipo === 'video' ? '🎥 Video' : mediaTipo === 'documento' ? `📄 ${m.documentMessage?.fileName || 'Documento'}` : '[Media]');
   chatsRecientes.set(chatId, { chatId, nombre, ultimo: ultimoTexto, ts, esGrupo: chatId.endsWith('@g.us') });
   if (_sseBroadcast) _sseBroadcast({ tipo: 'mensaje', ...msgObj, chatNombre: nombre });
+  guardarMensajesCache();
 }
 
 async function inicializar() {
   if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR, { recursive: true });
   cargarContactosDescoCache();
+  cargarMensajesCache();
 
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
   const { version } = await fetchLatestBaileysVersion();
@@ -168,7 +207,8 @@ async function inicializar() {
     auth: state,
     logger: P({ level: 'silent' }),
     printQRInTerminal: false,
-    browser: ['TP-Whatsapp', 'Chrome', '1.0']
+    browser: ['TP-Whatsapp', 'Chrome', '1.0'],
+    syncFullHistory: true
   });
 
   socket.ev.on('creds.update', saveCreds);

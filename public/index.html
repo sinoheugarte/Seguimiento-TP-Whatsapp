@@ -2304,6 +2304,7 @@ async function initPanelAgente() {
     const proveedor = data.proveedor || 'anthropic';
     _prevProveedor = proveedor;
     document.getElementById('agente-proveedor').value = proveedor;
+    document.getElementById('agente-apikey').value = _apiKeysCache[proveedor] || '';
     onProveedorChange();
     if (data.modelo) document.getElementById('agente-modelo').value = data.modelo;
     // Filtro

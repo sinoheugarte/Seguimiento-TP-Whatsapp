@@ -643,12 +643,13 @@
         </button>
         <div id="chat-avatar-hdr" class="chat-avatar grupo" style="width:28px;height:28px;font-size:.72rem;flex-shrink:0"></div>
         <span class="chat-conv-hdr-title" id="chat-titulo">—</span>
-        <button class="reload-btn" onclick="recargarMensajes()" title="Recargar">
+        <button class="reload-btn" id="chat-reload-btn" onclick="recargarMensajes()" title="Recargar">
           <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
         </button>
       </div>
       <div class="chat-mensajes" id="chat-mensajes-area"></div>
       <div class="chat-input-row">
+        <button type="button" class="emoji-trigger" onclick="abrirEmoji('chat-input-texto',this)" title="Insertar emoji" style="flex-shrink:0;padding:5px 8px;align-self:flex-end;margin-bottom:1px">😊</button>
         <textarea class="chat-input" id="chat-input-texto" placeholder="Mensaje (Enter envía)..." rows="1"
           onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviarMensajeChat()}"
           oninput="autoResizeChat(this)"></textarea>
@@ -3381,18 +3382,48 @@ function _beginIntroAnimation(scr, _au) {
   }
 
   async function recargarMensajes() {
+    const btn = document.getElementById('chat-reload-btn');
+    if (btn) btn.classList.add('cargando');
     if (_chatActual) await cargarMensajesChat(_chatActual);
+    if (btn) btn.classList.remove('cargando');
+  }
+
+  function _linkify(html) {
+    return html.replace(/(https?:\/\/[^\s<>"']+)/g,
+      '<a href="$1" target="_blank" rel="noopener" style="color:var(--accent2);word-break:break-all;text-decoration:underline">$1</a>');
+  }
+
+  function _renderContenido(msg) {
+    const tipo = msg.mediaTipo;
+    const path = msg.mediaPath;
+    let html = '';
+    if (tipo === 'imagen' && path) {
+      html += `<a href="${path}" target="_blank" style="display:block;margin-bottom:4px"><img src="${path}" style="max-width:100%;border-radius:8px;display:block;cursor:zoom-in" loading="lazy" onerror="this.style.display='none'"></a>`;
+    } else if (tipo === 'video' && path) {
+      html += `<video controls style="max-width:100%;border-radius:8px;display:block;margin-bottom:4px"><source src="${path}"></video>`;
+    } else if (tipo === 'documento' && path) {
+      const fname = escHtml(msg.docNombre || path.split('/').pop());
+      html += `<a href="${path}" download style="display:inline-flex;align-items:center;gap:6px;color:var(--accent2);text-decoration:none;background:rgba(0,153,255,.1);border:1px solid rgba(0,153,255,.2);border-radius:8px;padding:6px 10px;font-size:.78rem;margin-bottom:4px;max-width:100%;overflow:hidden">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${fname}</span>
+        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="flex-shrink:0"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      </a>`;
+    } else if (!tipo && !msg.texto) {
+      html += `<span style="color:var(--text2);font-size:.78rem;font-style:italic">[Media]</span>`;
+    }
+    if (msg.texto) html += `<span>${_linkify(escHtml(msg.texto))}</span>`;
+    return html || `<span style="color:var(--text2);font-size:.78rem;font-style:italic">[Media]</span>`;
   }
 
   function appendMensajeBurbuja(msg) {
     const area = document.getElementById('chat-mensajes-area');
     if (!area) return;
-    const div = document.createElement('div');
     const tipo = msg.fromMe ? 'enviado' : 'recibido';
     const hora = msg.ts ? new Date(msg.ts).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '';
+    const div = document.createElement('div');
     div.innerHTML = `<div class="msg-bubble ${tipo}">
-      ${!msg.fromMe && msg.autor ? `<div class="msg-autor">${escHtml(msg.autor)}</div>` : ''}
-      ${escHtml(msg.texto || '[Media]')}
+      ${(!msg.fromMe && msg.autor) ? `<div class="msg-autor">${escHtml(msg.autor)}</div>` : ''}
+      ${_renderContenido(msg)}
       <div class="msg-ts">${hora}</div>
     </div>`;
     area.appendChild(div.firstElementChild);

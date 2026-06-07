@@ -1,4 +1,4 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, downloadMediaMessage } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
@@ -23,6 +23,7 @@ function setSseBroadcast(fn) { _sseBroadcast = fn; }
 
 const AUTH_DIR = path.resolve('.baileys_auth');
 const CONTACTS_FILE = path.resolve('.baileys_auth', 'contacts-cache.json');
+const CHAT_MEDIA_DIR = path.resolve(__dirname, '../public/chat-media');
 
 function log(msg) {
   console.log('[WhatsApp]', msg);
@@ -90,36 +91,68 @@ function procesarContacto(c) {
   guardarContactosCache();
 }
 
-function guardarMensaje(msg) {
+async function guardarMensaje(msg) {
   const chatId = msg.key.remoteJid;
   if (!chatId || chatId === 'status@broadcast') return;
   const m = msg.message || {};
+
+  // Texto visible del mensaje
   const texto = m.conversation || m.extendedTextMessage?.text || m.imageMessage?.caption ||
     m.videoMessage?.caption || m.documentMessage?.caption ||
-    (m.imageMessage ? '[Imagen]' : m.videoMessage ? '[Video]' :
-    m.documentMessage ? `[Archivo: ${m.documentMessage.fileName || 'documento'}]` :
-    m.stickerMessage ? '[Sticker]' : m.audioMessage ? '[Audio]' : '');
+    (m.stickerMessage ? '[Sticker]' : m.audioMessage ? '[Audio]' : '');
+
+  // Tipo de media y descarga
+  let mediaTipo = null;
+  let mediaPath = null;
+  const tieneImagen = !!(m.imageMessage || m.stickerMessage);
+  const tieneVideo  = !!m.videoMessage;
+  const tieneDoc    = !!m.documentMessage;
+
+  if (tieneImagen || tieneVideo || tieneDoc) {
+    try {
+      if (!fs.existsSync(CHAT_MEDIA_DIR)) fs.mkdirSync(CHAT_MEDIA_DIR, { recursive: true });
+      const buf = await downloadMediaMessage(msg, 'buffer', {}, { reuploadRequest: socket?.updateMediaMessage });
+      let ext = '.bin';
+      if (tieneImagen)     ext = m.stickerMessage ? '.webp' : '.jpg';
+      else if (tieneVideo) ext = '.mp4';
+      else if (tieneDoc)   ext = path.extname(m.documentMessage.fileName || '') || '.bin';
+      const fname = `${msg.key.id || Date.now()}${ext}`.replace(/[^\w.\-]/g, '_');
+      fs.writeFileSync(path.join(CHAT_MEDIA_DIR, fname), buf);
+      mediaPath = `/chat-media/${fname}`;
+      mediaTipo = tieneImagen ? 'imagen' : tieneVideo ? 'video' : 'documento';
+    } catch (e) {
+      log(`[ChatMedia] no se pudo descargar (${e.message?.slice(0,60)})`);
+      mediaTipo = tieneImagen ? 'imagen' : tieneVideo ? 'video' : 'documento';
+    }
+  }
+
   const fromMe = !!msg.key.fromMe;
   const ts = Number(msg.messageTimestamp) * 1000 || Date.now();
   const pushName = msg.pushName || '';
   const nombre = chatId.endsWith('@g.us')
     ? (gruposCache.find(g => g.chatId === chatId)?.nombre || chatId.replace('@g.us', ''))
     : (contactosCache.get(chatId) || pushName || chatId.replace(/@[^@]+$/, ''));
+
   const msgObj = {
     id: msg.key.id,
     chatId,
     fromMe,
     texto: texto || '',
     ts,
-    autor: fromMe ? 'Tú' : (pushName || contactosCache.get(chatId) || chatId.replace(/@[^@]+$/, ''))
+    autor: fromMe ? 'Tú' : (pushName || contactosCache.get(chatId) || chatId.replace(/@[^@]+$/, '')),
+    mediaTipo,
+    mediaPath,
+    docNombre: m.documentMessage?.fileName || null
   };
+
   if (!mensajesStore.has(chatId)) mensajesStore.set(chatId, []);
   const lista = mensajesStore.get(chatId);
   if (!lista.find(x => x.id === msgObj.id)) {
     lista.push(msgObj);
     if (lista.length > MAX_MSGS_POR_CHAT) lista.shift();
   }
-  chatsRecientes.set(chatId, { chatId, nombre, ultimo: texto || '[Media]', ts, esGrupo: chatId.endsWith('@g.us') });
+  const ultimoTexto = texto || (mediaTipo === 'imagen' ? '📷 Imagen' : mediaTipo === 'video' ? '🎥 Video' : mediaTipo === 'documento' ? `📄 ${m.documentMessage?.fileName || 'Documento'}` : '[Media]');
+  chatsRecientes.set(chatId, { chatId, nombre, ultimo: ultimoTexto, ts, esGrupo: chatId.endsWith('@g.us') });
   if (_sseBroadcast) _sseBroadcast({ tipo: 'mensaje', ...msgObj, chatNombre: nombre });
 }
 

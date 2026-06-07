@@ -10,6 +10,7 @@ let listo = false;
 let ultimoQR = null;
 let gruposCache = [];
 let contactosCache = new Map(); // chatId → nombre
+const lidToJid = new Map(); // @lid → @s.whatsapp.net (mismo contacto, distinto formato)
 
 const AUTH_DIR = path.resolve('.baileys_auth');
 const CONTACTS_FILE = path.resolve('.baileys_auth', 'contacts-cache.json');
@@ -49,6 +50,16 @@ function procesarContacto(c) {
   if (!c.id || !esContactoPrivado(c.id)) return;
   const nombre = c.name || c.notify || c.verifiedName || c.id.replace(/@s\.whatsapp\.net$|@lid$/, '');
   contactosCache.set(c.id, nombre);
+  // Construir mapa @lid ↔ @s.whatsapp.net para el mismo contacto
+  if (c.id.endsWith('@s.whatsapp.net') && c.lid) {
+    const lid = c.lid.endsWith('@lid') ? c.lid : `${c.lid}@lid`;
+    lidToJid.set(lid, c.id);
+    contactosCache.set(lid, nombre);
+  } else if (c.id.endsWith('@lid') && c.lid) {
+    const jid = c.lid.endsWith('@s.whatsapp.net') ? c.lid : `${c.lid}@s.whatsapp.net`;
+    lidToJid.set(c.id, jid);
+    contactosCache.set(jid, nombre);
+  }
   guardarContactosCache();
 }
 
@@ -172,8 +183,10 @@ async function inicializar() {
         msg.message.imageMessage?.caption ||
         msg.message.videoMessage?.caption || '';
       if (!texto.trim()) continue;
+      // Normalizar @lid → @s.whatsapp.net para que coincida con el filtro guardado
+      const chatIdFiltro = lidToJid.get(chatId) || chatId;
       try {
-        const respuesta = await procesarMensaje(chatId, texto);
+        const respuesta = await procesarMensaje(chatIdFiltro, texto);
         if (respuesta) await socket.sendMessage(chatId, { text: respuesta });
       } catch (err) {
         console.error('[Agente] Error procesando mensaje:', err.message);

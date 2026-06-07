@@ -201,6 +201,12 @@ async function inicializar() {
         msg.message.imageMessage?.caption ||
         msg.message.videoMessage?.caption || '';
       if (!texto.trim()) continue;
+      // Registrar @lid en caché usando pushName del mensaje (si aún no está)
+      if (chatId.endsWith('@lid') && msg.pushName && !contactosCache.has(chatId)) {
+        contactosCache.set(chatId, msg.pushName);
+        guardarContactosCache();
+        log(`Contacto @lid registrado: ${chatId} → ${msg.pushName}`);
+      }
       // Normalizar @lid → @s.whatsapp.net para que coincida con el filtro guardado
       const chatIdFiltro = resolverLid(chatId);
       try {

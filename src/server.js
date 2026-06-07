@@ -238,13 +238,14 @@ app.put('/api/agente/config', (req, res) => {
   try {
     const config = leerConfig();
     if (!config.agente) config.agente = {};
-    const { activo, apiKey, apiKeys, modelo, proveedor, instruccionesExtra, filtro, chatsFiltros } = req.body;
+    const { activo, apiKey, apiKeys, modelo, proveedor, instruccionesExtra, prefijoActivacion, filtro, chatsFiltros } = req.body;
     if (activo !== undefined) config.agente.activo = activo;
     if (apiKeys !== undefined) config.agente.apiKeys = apiKeys;
     else if (apiKey !== undefined) config.agente.apiKey = apiKey; // compatibilidad
     if (modelo !== undefined) config.agente.modelo = modelo;
     if (proveedor !== undefined) config.agente.proveedor = proveedor;
     if (instruccionesExtra !== undefined) config.agente.instruccionesExtra = instruccionesExtra;
+    if (prefijoActivacion !== undefined) config.agente.prefijoActivacion = prefijoActivacion;
     if (filtro !== undefined) config.agente.filtro = filtro;
     if (chatsFiltros !== undefined) config.agente.chatsFiltros = chatsFiltros;
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf8');

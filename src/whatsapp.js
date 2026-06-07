@@ -236,10 +236,13 @@ async function inicializar() {
 
   // Agente IA: responder mensajes entrantes
   socket.ev.on('messages.upsert', async ({ messages, type }) => {
-    if (type !== 'notify') return;
     for (const msg of messages) {
       if (!msg.message) continue;
+      // Guardar en store para chat en vivo (tanto notify=entrantes como append=enviados/historial)
       guardarMensaje(msg);
+
+      if (type !== 'notify') continue; // El agente IA solo procesa mensajes en tiempo real
+
       const chatId = msg.key.remoteJid;
       if (!chatId) continue;
       const textoRaw = msg.message.conversation ||

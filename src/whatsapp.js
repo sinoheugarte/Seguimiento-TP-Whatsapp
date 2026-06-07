@@ -15,6 +15,12 @@ let gruposCache = [];
 let contactosCache = new Map(); // chatId → nombre
 const lidToJid = new Map(); // @lid → @s.whatsapp.net (mismo contacto, distinto formato)
 
+const mensajesStore = new Map(); // chatId -> Message[]
+const chatsRecientes = new Map(); // chatId -> {chatId, nombre, ultimo, ts, esGrupo}
+const MAX_MSGS_POR_CHAT = 80;
+let _sseBroadcast = null;
+function setSseBroadcast(fn) { _sseBroadcast = fn; }
+
 const AUTH_DIR = path.resolve('.baileys_auth');
 const CONTACTS_FILE = path.resolve('.baileys_auth', 'contacts-cache.json');
 
@@ -82,6 +88,39 @@ function procesarContacto(c) {
     contactosCache.set(jid, nombre);
   }
   guardarContactosCache();
+}
+
+function guardarMensaje(msg) {
+  const chatId = msg.key.remoteJid;
+  if (!chatId || chatId === 'status@broadcast') return;
+  const m = msg.message || {};
+  const texto = m.conversation || m.extendedTextMessage?.text || m.imageMessage?.caption ||
+    m.videoMessage?.caption || m.documentMessage?.caption ||
+    (m.imageMessage ? '[Imagen]' : m.videoMessage ? '[Video]' :
+    m.documentMessage ? `[Archivo: ${m.documentMessage.fileName || 'documento'}]` :
+    m.stickerMessage ? '[Sticker]' : m.audioMessage ? '[Audio]' : '');
+  const fromMe = !!msg.key.fromMe;
+  const ts = Number(msg.messageTimestamp) * 1000 || Date.now();
+  const pushName = msg.pushName || '';
+  const nombre = chatId.endsWith('@g.us')
+    ? (gruposCache.find(g => g.chatId === chatId)?.nombre || chatId.replace('@g.us', ''))
+    : (contactosCache.get(chatId) || pushName || chatId.replace(/@[^@]+$/, ''));
+  const msgObj = {
+    id: msg.key.id,
+    chatId,
+    fromMe,
+    texto: texto || '',
+    ts,
+    autor: fromMe ? 'Tú' : (pushName || contactosCache.get(chatId) || chatId.replace(/@[^@]+$/, ''))
+  };
+  if (!mensajesStore.has(chatId)) mensajesStore.set(chatId, []);
+  const lista = mensajesStore.get(chatId);
+  if (!lista.find(x => x.id === msgObj.id)) {
+    lista.push(msgObj);
+    if (lista.length > MAX_MSGS_POR_CHAT) lista.shift();
+  }
+  chatsRecientes.set(chatId, { chatId, nombre, ultimo: texto || '[Media]', ts, esGrupo: chatId.endsWith('@g.us') });
+  if (_sseBroadcast) _sseBroadcast({ tipo: 'mensaje', ...msgObj, chatNombre: nombre });
 }
 
 async function inicializar() {
@@ -196,6 +235,7 @@ async function inicializar() {
     if (type !== 'notify') return;
     for (const msg of messages) {
       if (!msg.message) continue;
+      guardarMensaje(msg);
       const chatId = msg.key.remoteJid;
       if (!chatId) continue;
       const textoRaw = msg.message.conversation ||
@@ -333,4 +373,4 @@ async function cerrarSesion() {
   setTimeout(inicializar, 1500);
 }
 
-module.exports = { inicializar, enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion };
+module.exports = { inicializar, enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion, getMensajesStore: () => mensajesStore, getChatsRecientes: () => chatsRecientes, setSseBroadcast };

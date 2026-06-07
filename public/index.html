@@ -426,6 +426,52 @@
     .cal-month-chip.selected { background: rgba(0,200,150,.15); border-color: rgba(0,200,150,.4); color: var(--accent); }
     .cal-month-chip.has-days { border-color: rgba(0,153,255,.35); color: var(--accent2); background: rgba(0,153,255,.07); }
 
+    /* ── Chat en Vivo ── */
+    .chat-layout { display:flex; height:calc(100vh - 180px); min-height:500px; border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; background:var(--surface); box-shadow:var(--shadow); }
+    .chat-sidebar { width:300px; flex-shrink:0; border-right:1px solid var(--border); display:flex; flex-direction:column; background:var(--surface); }
+    .chat-search-box { padding:12px; border-bottom:1px solid var(--border); }
+    .chat-search-box input { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:8px 12px; color:var(--text); font-size:.85rem; font-family:inherit; }
+    .chat-search-box input:focus { outline:none; border-color:var(--accent); }
+    .chat-filter-bar { display:flex; gap:4px; padding:8px 12px; border-bottom:1px solid var(--border); }
+    .chat-filter-btn { flex:1; padding:5px 8px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--text2); font-size:.75rem; font-weight:600; cursor:pointer; transition:var(--trans); font-family:inherit; }
+    .chat-filter-btn:hover { color:var(--text); }
+    .chat-filter-btn.active { background:rgba(0,200,150,.15); color:var(--accent); border-color:rgba(0,200,150,.3); }
+    .chat-lista { flex:1; overflow-y:auto; scrollbar-width:thin; scrollbar-color:#2a3a4a transparent; }
+    .chat-lista::-webkit-scrollbar { width:4px; }
+    .chat-lista::-webkit-scrollbar-thumb { background:#2a3a4a; border-radius:4px; }
+    .chat-item { display:flex; align-items:center; gap:10px; padding:12px 14px; cursor:pointer; transition:var(--trans); border-bottom:1px solid rgba(255,255,255,.03); }
+    .chat-item:hover { background:var(--surface2); }
+    .chat-item.active { background:rgba(0,200,150,.1); border-left:3px solid var(--accent); }
+    .chat-avatar { width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:.88rem; font-weight:700; flex-shrink:0; }
+    .chat-avatar.grupo { background:linear-gradient(135deg,rgba(0,153,255,.3),rgba(0,153,255,.1)); color:var(--accent2); }
+    .chat-avatar.privado { background:linear-gradient(135deg,rgba(0,200,150,.3),rgba(0,200,150,.1)); color:var(--accent); }
+    .chat-item-info { flex:1; min-width:0; }
+    .chat-item-nombre { font-size:.87rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .chat-item-ultimo { font-size:.76rem; color:var(--text2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
+    .chat-item-ts { font-size:.7rem; color:var(--text2); flex-shrink:0; }
+    .chat-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; gap:10px; color:var(--text2); font-size:.85rem; text-align:center; padding:20px; }
+    /* Chat view */
+    .chat-view { flex:1; display:flex; flex-direction:column; min-width:0; }
+    .chat-view-header { padding:14px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:12px; background:var(--surface); }
+    .chat-view-title { font-size:.95rem; font-weight:700; }
+    .chat-view-sub { font-size:.76rem; color:var(--text2); }
+    .chat-mensajes { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:6px; scrollbar-width:thin; scrollbar-color:#2a3a4a transparent; }
+    .chat-mensajes::-webkit-scrollbar { width:4px; }
+    .chat-mensajes::-webkit-scrollbar-thumb { background:#2a3a4a; border-radius:4px; }
+    .msg-bubble { max-width:72%; padding:9px 13px; border-radius:14px; font-size:.875rem; line-height:1.5; word-break:break-word; }
+    .msg-bubble.enviado { align-self:flex-end; background:rgba(0,200,150,.18); border-bottom-right-radius:4px; color:var(--text); }
+    .msg-bubble.recibido { align-self:flex-start; background:var(--surface2); border-bottom-left-radius:4px; color:var(--text); }
+    .msg-autor { font-size:.7rem; font-weight:700; color:var(--accent2); margin-bottom:3px; }
+    .msg-ts { font-size:.67rem; color:var(--text2); margin-top:4px; text-align:right; }
+    .chat-no-sel { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:var(--text2); }
+    .chat-input-row { padding:12px 16px; border-top:1px solid var(--border); display:flex; gap:10px; align-items:flex-end; background:var(--surface); }
+    .chat-input { flex:1; background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:10px 14px; color:var(--text); font-size:.9rem; font-family:inherit; resize:none; max-height:120px; min-height:40px; }
+    .chat-input:focus { outline:none; border-color:var(--accent); }
+    .chat-send-btn { background:linear-gradient(135deg,#00c896,#00a876); border:none; border-radius:10px; color:#fff; padding:10px 14px; cursor:pointer; transition:var(--trans); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .chat-send-btn:hover { transform:translateY(-1px); box-shadow:0 4px 14px rgba(0,200,150,.4); }
+    .chat-send-btn:disabled { opacity:.5; cursor:not-allowed; transform:none; }
+    .chat-no-conn { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; color:var(--text2); font-size:.88rem; }
+
   /* ── PRESPLASH ───────────────────────────────────────── */
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap');
   #presplash{position:fixed;inset:0;z-index:10000;background:#f8f6f0;
@@ -533,6 +579,10 @@
     <button class="nav-item" onclick="mostrarPanel('agente',this)" id="nav-agente">
       <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="8.5" cy="10" r="1.5" fill="currentColor" stroke="none"/><circle cx="15.5" cy="10" r="1.5" fill="currentColor" stroke="none"/><path d="M9 13c0 0 1 1.5 3 1.5s3-1.5 3-1.5"/></svg>
       Agente IA
+    </button>
+    <button class="nav-item" onclick="mostrarPanel('chat',this)" id="nav-chat">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      Chat en Vivo
     </button>
     <div style="margin-top:auto;padding-top:8px;">
       <div class="nav-divider" style="margin-bottom:8px;"></div>
@@ -1164,6 +1214,63 @@
       </div>
     </div>
 
+
+    <!-- ══ CHAT EN VIVO ══ -->
+    <div id="panel-chat" class="panel">
+      <div class="section-title">Chat en Vivo</div>
+      <div class="section-sub">Visualizá los mensajes en tiempo real y respondé directamente desde el panel.</div>
+
+      <div class="chat-layout">
+        <!-- Lista de chats -->
+        <div class="chat-sidebar">
+          <div class="chat-search-box">
+            <input type="text" id="chat-buscar" placeholder="🔍 Buscar conversación..." oninput="filtrarChats()">
+          </div>
+          <div class="chat-filter-bar">
+            <button class="chat-filter-btn active" id="cfb-todos" onclick="setChatFiltro('todos',this)">Todos</button>
+            <button class="chat-filter-btn" id="cfb-grupos" onclick="setChatFiltro('grupos',this)">Grupos</button>
+            <button class="chat-filter-btn" id="cfb-privados" onclick="setChatFiltro('privados',this)">Privados</button>
+            <button class="chat-filter-btn" id="cfb-config" onclick="setChatFiltro('config',this)">Configurados</button>
+          </div>
+          <div id="chat-lista" class="chat-lista">
+            <div class="chat-empty">
+              <svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+              <span>Los chats aparecerán<br>cuando lleguen mensajes</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Vista de conversación -->
+        <div class="chat-view" id="chat-view-area">
+          <div class="chat-no-sel" id="chat-no-sel">
+            <svg width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24" style="opacity:.3"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+            <span style="font-size:.92rem">Seleccioná una conversación</span>
+          </div>
+          <div id="chat-conv" style="display:none;flex:1;flex-direction:column;overflow:hidden">
+            <div class="chat-view-header">
+              <div id="chat-avatar-hdr" class="chat-avatar grupo" style="flex-shrink:0"></div>
+              <div>
+                <div class="chat-view-title" id="chat-titulo">—</div>
+                <div class="chat-view-sub" id="chat-subtitulo"></div>
+              </div>
+              <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="recargarMensajes()" title="Recargar">
+                <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+              </button>
+            </div>
+            <div class="chat-mensajes" id="chat-mensajes-area"></div>
+            <div class="chat-input-row">
+              <textarea class="chat-input" id="chat-input-texto" placeholder="Escribí un mensaje..." rows="1"
+                onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviarMensajeChat()}"
+                oninput="autoResizeChat(this)"></textarea>
+              <button class="chat-send-btn" id="chat-send-btn" onclick="enviarMensajeChat()" title="Enviar">
+                <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </main>
 </div>
 
@@ -1200,6 +1307,7 @@ async function cargarEstado() {
     const data = await res.json();
     estado = data;
     exito = true;
+    if (data.gruposConfig) _gruposConfig = data.gruposConfig;
     const pill = document.getElementById('wa-pill');
     const txt = document.getElementById('wa-text');
     pill.className = 'wa-pill ' + (estado.whatsapp ? 'ok' : 'err');
@@ -1249,6 +1357,7 @@ function mostrarPanel(id, btn) {
   document.getElementById('panel-' + id).classList.add('active');
   btn.classList.add('active');
   if (id === 'agente') initPanelAgente();
+      if (id === 'chat') initChatEnVivo();
 }
 
 // ── Archivos ─────────────────────────────────────────────────────────────────
@@ -3113,6 +3222,193 @@ function _beginIntroAnimation(scr, _au) {
   }
   requestAnimationFrame(frame);
 }
+
+  // ═══════════════ CHAT EN VIVO ═══════════════
+  let _chatFiltro = 'todos';
+  let _chatActual = null;
+  let _chatsData = [];
+  let _sseConn = null;
+  let _gruposConfig = [];
+
+  function initChatEnVivo() {
+    if (_sseConn && _sseConn.readyState < 2) return; // ya conectado
+    conectarSSE();
+    cargarChatsLista();
+  }
+
+  function conectarSSE() {
+    _sseConn = new EventSource('/api/chat/sse');
+    _sseConn.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.tipo === 'mensaje') onNuevoMensajeSSE(data);
+      } catch (_) {}
+    };
+    _sseConn.onerror = () => {
+      _sseConn.close();
+      setTimeout(conectarSSE, 5000);
+    };
+  }
+
+  function onNuevoMensajeSSE(msg) {
+    // Actualizar lista de chats
+    const existente = _chatsData.find(c => c.chatId === msg.chatId);
+    if (existente) {
+      existente.ultimo = msg.texto || '[Media]';
+      existente.ts = msg.ts;
+    } else {
+      _chatsData.unshift({ chatId: msg.chatId, nombre: msg.chatNombre || msg.chatId, ultimo: msg.texto || '[Media]', ts: msg.ts, esGrupo: msg.chatId.endsWith('@g.us') });
+    }
+    _chatsData.sort((a, b) => b.ts - a.ts);
+    renderChatsLista();
+    // Si el mensaje es del chat actual, agregar burbuja
+    if (_chatActual === msg.chatId) {
+      appendMensajeBurbuja(msg);
+      scrollChatAbajo();
+    }
+  }
+
+  async function cargarChatsLista() {
+    try {
+      const r = await fetch('/api/chat/chats');
+      _chatsData = await r.json();
+      renderChatsLista();
+    } catch (_) {}
+  }
+
+  function setChatFiltro(f, btn) {
+    _chatFiltro = f;
+    document.querySelectorAll('.chat-filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderChatsLista();
+  }
+
+  function filtrarChats() { renderChatsLista(); }
+
+  function renderChatsLista() {
+    const buscar = (document.getElementById('chat-buscar')?.value || '').toLowerCase();
+    let lista = [..._chatsData];
+    if (_chatFiltro === 'grupos') lista = lista.filter(c => c.esGrupo);
+    else if (_chatFiltro === 'privados') lista = lista.filter(c => !c.esGrupo);
+    else if (_chatFiltro === 'config') {
+      const ids = (_gruposConfig || []).map(g => g.chatId);
+      lista = lista.filter(c => ids.includes(c.chatId));
+    }
+    if (buscar) lista = lista.filter(c => c.nombre.toLowerCase().includes(buscar));
+
+    const el = document.getElementById('chat-lista');
+    if (!lista.length) {
+      el.innerHTML = `<div class="chat-empty"><svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><span>Sin conversaciones</span></div>`;
+      return;
+    }
+    el.innerHTML = lista.map(c => {
+      const ini = (c.nombre || '?')[0].toUpperCase();
+      const tipo = c.esGrupo ? 'grupo' : 'privado';
+      const activo = _chatActual === c.chatId ? ' active' : '';
+      const hora = c.ts ? new Date(c.ts).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '';
+      return `<div class="chat-item${activo}" onclick="seleccionarChat('${c.chatId}')">
+        <div class="chat-avatar ${tipo}">${ini}</div>
+        <div class="chat-item-info">
+          <div class="chat-item-nombre">${escHtml(c.nombre)}</div>
+          <div class="chat-item-ultimo">${escHtml(c.ultimo || '')}</div>
+        </div>
+        <div class="chat-item-ts">${hora}</div>
+      </div>`;
+    }).join('');
+  }
+
+  async function seleccionarChat(chatId) {
+    _chatActual = chatId;
+    renderChatsLista();
+    const chat = _chatsData.find(c => c.chatId === chatId) || { nombre: chatId, esGrupo: chatId.endsWith('@g.us') };
+    document.getElementById('chat-no-sel').style.display = 'none';
+    const conv = document.getElementById('chat-conv');
+    conv.style.display = 'flex';
+    const ini = (chat.nombre || '?')[0].toUpperCase();
+    const avatarEl = document.getElementById('chat-avatar-hdr');
+    avatarEl.textContent = ini;
+    avatarEl.className = 'chat-avatar ' + (chat.esGrupo ? 'grupo' : 'privado');
+    document.getElementById('chat-titulo').textContent = chat.nombre;
+    document.getElementById('chat-subtitulo').textContent = chat.esGrupo ? 'Grupo' : 'Contacto';
+    document.getElementById('chat-mensajes-area').innerHTML = '<div style="color:var(--text2);font-size:.82rem;text-align:center;padding:20px">Cargando mensajes...</div>';
+    await cargarMensajesChat(chatId);
+  }
+
+  async function cargarMensajesChat(chatId) {
+    try {
+      const r = await fetch(`/api/chat/mensajes/${encodeURIComponent(chatId)}`);
+      const msgs = await r.json();
+      const area = document.getElementById('chat-mensajes-area');
+      if (!msgs.length) {
+        area.innerHTML = '<div style="color:var(--text2);font-size:.82rem;text-align:center;padding:20px">Sin mensajes recientes</div>';
+        return;
+      }
+      area.innerHTML = '';
+      msgs.forEach(m => appendMensajeBurbuja(m));
+      scrollChatAbajo();
+    } catch (_) {
+      document.getElementById('chat-mensajes-area').innerHTML = '<div style="color:var(--danger);font-size:.82rem;text-align:center;padding:20px">Error al cargar mensajes</div>';
+    }
+  }
+
+  async function recargarMensajes() {
+    if (_chatActual) await cargarMensajesChat(_chatActual);
+  }
+
+  function appendMensajeBurbuja(msg) {
+    const area = document.getElementById('chat-mensajes-area');
+    if (!area) return;
+    const div = document.createElement('div');
+    const tipo = msg.fromMe ? 'enviado' : 'recibido';
+    const hora = msg.ts ? new Date(msg.ts).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '';
+    div.innerHTML = `<div class="msg-bubble ${tipo}">
+      ${!msg.fromMe && msg.autor ? `<div class="msg-autor">${escHtml(msg.autor)}</div>` : ''}
+      ${escHtml(msg.texto || '[Media]')}
+      <div class="msg-ts">${hora}</div>
+    </div>`;
+    area.appendChild(div.firstElementChild);
+  }
+
+  function scrollChatAbajo() {
+    const area = document.getElementById('chat-mensajes-area');
+    if (area) setTimeout(() => { area.scrollTop = area.scrollHeight; }, 50);
+  }
+
+  async function enviarMensajeChat() {
+    if (!_chatActual) return;
+    const input = document.getElementById('chat-input-texto');
+    const texto = input.value.trim();
+    if (!texto) return;
+    const btn = document.getElementById('chat-send-btn');
+    btn.disabled = true;
+    try {
+      const r = await fetch('/api/chat/enviar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId: _chatActual, texto })
+      });
+      if (r.ok) {
+        input.value = '';
+        input.style.height = '';
+      } else {
+        const e = await r.json();
+        toast('Error: ' + (e.error || 'No se pudo enviar'), 'err');
+      }
+    } catch (_) {
+      toast('Error de conexión', 'err');
+    }
+    btn.disabled = false;
+    input.focus();
+  }
+
+  function autoResizeChat(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
 </script>
 </body>
 </html>

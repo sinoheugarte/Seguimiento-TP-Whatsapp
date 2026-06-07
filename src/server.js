@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion } = require('./whatsapp');
+const { enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion, getMensajesStore, getChatsRecientes, setSseBroadcast } = require('./whatsapp');
 const qrcode = require('qrcode');
 const { enviarCorreo } = require('./email');
 const { ejecutarProgramacion, iniciarProgramaciones, detenerTodo } = require('./scheduler');
@@ -20,6 +20,16 @@ function guardarConfig(cfg) {
 
 const app = express();
 const upload = multer({ dest: 'media/' });
+
+const sseClientes = [];
+function sseEnviar(data) {
+  const payload = `data: ${JSON.stringify(data)}\n\n`;
+  for (let i = sseClientes.length - 1; i >= 0; i--) {
+    try { sseClientes[i].write(payload); }
+    catch (_) { sseClientes.splice(i, 1); }
+  }
+}
+setSseBroadcast(sseEnviar);
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
@@ -318,6 +328,42 @@ app.delete('/api/agente/documentos/:nombre', (req, res) => {
 app.post('/api/agente/limpiar-historial', (req, res) => {
   try {
     limpiarHistorial(req.body?.chatId || null);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Chat en Vivo ──────────────────────────────────────────────────────────────
+app.get('/api/chat/sse', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+  sseClientes.push(res);
+  const hb = setInterval(() => { try { res.write(': ping\n\n'); } catch (_) {} }, 25000);
+  req.on('close', () => {
+    clearInterval(hb);
+    const idx = sseClientes.indexOf(res);
+    if (idx !== -1) sseClientes.splice(idx, 1);
+  });
+});
+
+app.get('/api/chat/chats', (req, res) => {
+  const chats = Array.from(getChatsRecientes().values())
+    .sort((a, b) => b.ts - a.ts)
+    .slice(0, 60);
+  res.json(chats);
+});
+
+app.get('/api/chat/mensajes/:chatId', (req, res) => {
+  const msgs = getMensajesStore().get(req.params.chatId) || [];
+  res.json(msgs);
+});
+
+app.post('/api/chat/enviar', async (req, res) => {
+  const { chatId, texto } = req.body;
+  if (!chatId || !texto) return res.status(400).json({ error: 'chatId y texto son requeridos' });
+  try {
+    await enviarMensaje(chatId, texto, []);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

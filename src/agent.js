@@ -12,13 +12,53 @@ function leerConfig() {
 
 async function cargarTextoDocumento(filepath) {
   const ext = path.extname(filepath).toLowerCase();
-  if (['.txt', '.md'].includes(ext)) return fs.readFileSync(filepath, 'utf8');
+
+  // Texto plano
+  if (['.txt', '.md', '.sql', '.csv'].includes(ext)) return fs.readFileSync(filepath, 'utf8');
+
+  // PDF
   if (ext === '.pdf') {
     try {
       const data = await require('pdf-parse')(fs.readFileSync(filepath));
       return data.text;
     } catch (_) { return ''; }
   }
+
+  // Word (.docx, .doc)
+  if (ext === '.docx' || ext === '.doc') {
+    try {
+      const mammoth = require('mammoth');
+      const result = await mammoth.extractRawText({ path: filepath });
+      return result.value;
+    } catch (_) { return ''; }
+  }
+
+  // Excel (.xlsx, .xls)
+  if (ext === '.xlsx' || ext === '.xls') {
+    try {
+      const XLSX = require('xlsx');
+      const wb = XLSX.readFile(filepath);
+      return wb.SheetNames.map(name => {
+        const ws = wb.Sheets[name];
+        return `=== Hoja: ${name} ===\n${XLSX.utils.sheet_to_csv(ws)}`;
+      }).join('\n\n');
+    } catch (_) { return ''; }
+  }
+
+  // PowerPoint (.pptx, .ppt)
+  if (ext === '.pptx' || ext === '.ppt') {
+    try {
+      const officeParser = require('officeparser');
+      const text = await officeParser.parseOfficeAsync(filepath);
+      return text || '';
+    } catch (_) { return ''; }
+  }
+
+  // Imágenes — se incluye referencia por nombre
+  if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) {
+    return `[Imagen adjunta: ${path.basename(filepath)}]`;
+  }
+
   return '';
 }
 

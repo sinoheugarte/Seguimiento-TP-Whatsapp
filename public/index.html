@@ -1074,7 +1074,7 @@
       <div id="agente-tab-docs" class="agente-tab">
         <div class="card">
           <div class="card-title">Base de Conocimiento</div>
-          <div class="card-desc">Sube documentos con información de tu empresa (tarifas, zonas de cobertura, procedimientos, etc.) para que la IA los use en sus respuestas. Formatos soportados: <strong>.txt, .pdf</strong></div>
+          <div class="card-desc">Sube documentos con información de tu empresa (tarifas, zonas de cobertura, procedimientos, etc.) para que la IA los use en sus respuestas. Formatos soportados: <strong>.txt · .pdf · .docx · .doc · .xlsx · .xls · .pptx · .ppt · .csv · .sql · imágenes</strong></div>
 
           <div class="doc-drop-zone" id="doc-drop-zone" onclick="document.getElementById('doc-file-input').click()"
             ondragover="event.preventDefault();this.classList.add('drag-over')"
@@ -1082,9 +1082,9 @@
             ondrop="event.preventDefault();this.classList.remove('drag-over');subirDocumentos(event.dataTransfer.files)">
             <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             <div style="font-weight:600;margin-bottom:4px">Arrastrá archivos aquí</div>
-            <div style="font-size:.82rem">o hacé clic para seleccionar · .txt, .pdf</div>
+            <div style="font-size:.82rem">o hacé clic para seleccionar · .txt · .pdf · .docx · .xlsx · .pptx · .csv · .sql · imágenes</div>
           </div>
-          <input type="file" id="doc-file-input" multiple accept=".txt,.pdf,.md" style="display:none" onchange="subirDocumentos(this.files)">
+          <input type="file" id="doc-file-input" multiple accept=".txt,.pdf,.md,.docx,.doc,.xlsx,.xls,.pptx,.ppt,.csv,.sql,.jpg,.jpeg,.png,.gif,.webp" style="display:none" onchange="subirDocumentos(this.files)">
 
           <div id="lista-docs" style="margin-top:16px"></div>
         </div>

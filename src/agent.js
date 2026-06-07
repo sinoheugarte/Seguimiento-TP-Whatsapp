@@ -80,6 +80,21 @@ async function llamarGroq(agente, systemPrompt, history) {
   return response.choices[0].message.content;
 }
 
+// Devuelve true si el chatId es @lid y los filtros solo tienen contactos en formato
+// @s.whatsapp.net (guardados antes de que WhatsApp introdujera @lid).
+// En ese caso no podemos verificar exactamente, así que lo dejamos pasar.
+function permitirLidSinMapeo(chatId, filtros) {
+  if (!chatId.endsWith('@lid')) return false;
+  const hayLidsEnFiltros = filtros.some(f => f.endsWith('@lid'));
+  if (hayLidsEnFiltros) return false; // filtros tienen @lid → debe coincidir exacto
+  const hayPrivadosAntiguos = filtros.some(f => f.endsWith('@s.whatsapp.net'));
+  if (hayPrivadosAntiguos) {
+    console.log(`[Agente] @lid aceptado (filtros en formato @s.whatsapp.net anterior — abrí Agente IA y vuelve a guardar para precisión exacta) → ${chatId}`);
+    return true;
+  }
+  return false;
+}
+
 async function procesarMensaje(chatId, texto) {
   const config = leerConfig();
   const agente = config.agente;
@@ -101,14 +116,23 @@ async function procesarMensaje(chatId, texto) {
   } else if (filtro === 'privados') {
     if (!esPrivado) { console.log(`[Agente] Bloqueado: filtro=privados pero el mensaje es de un grupo (${chatId})`); return null; }
     if (filtros.length > 0 && !filtros.includes(chatId)) {
-      console.log(`[Agente] Bloqueado: contacto ${chatId} no está en la lista seleccionada: [${filtros.join(', ')}]`);
-      return null;
+      if (!permitirLidSinMapeo(chatId, filtros)) {
+        console.log(`[Agente] Bloqueado: contacto ${chatId} no está en la lista seleccionada: [${filtros.join(', ')}]`);
+        return null;
+      }
     }
   } else if (filtro === 'ambos') {
     if (!esGrupo && !esPrivado) { console.log(`[Agente] Bloqueado: tipo de chat desconocido (${chatId})`); return null; }
     if (filtros.length > 0 && !filtros.includes(chatId)) {
-      console.log(`[Agente] Bloqueado: chat ${chatId} no está en la lista combinada: [${filtros.join(', ')}]`);
-      return null;
+      if (esPrivado && permitirLidSinMapeo(chatId, filtros)) {
+        // @lid permitido — re-guarda la config del Agente IA para que quede preciso
+      } else if (!esGrupo) {
+        console.log(`[Agente] Bloqueado: chat ${chatId} no está en la lista combinada: [${filtros.join(', ')}]`);
+        return null;
+      } else {
+        console.log(`[Agente] Bloqueado: chat ${chatId} no está en la lista combinada: [${filtros.join(', ')}]`);
+        return null;
+      }
     }
   }
 

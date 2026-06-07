@@ -977,10 +977,9 @@
               <div class="grupos-header" onclick="toggleGrupos('filtro-grupos-body','filtro-grupos-arrow')">
                 <span class="gh-left">
                   <svg width="15" height="15" viewBox="0 0 32 32" fill="currentColor"><path d="M16 2C8.28 2 2 8.28 2 16c0 2.46.66 4.77 1.8 6.77L2 30l7.45-1.76A13.9 13.9 0 0016 30c7.72 0 14-6.28 14-14S23.72 2 16 2z"/></svg>
-                  Grupos WhatsApp
+                  Grupos — <span id="filtro-grupos-contador" style="color:var(--accent);font-weight:600">ninguno seleccionado</span>
                 </span>
                 <div style="display:flex;align-items:center;gap:8px">
-                  <span id="filtro-grupos-contador" class="grupos-cuenta" style="display:none"></span>
                   <svg id="filtro-grupos-arrow" class="grupos-arrow" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>
                 </div>
               </div>
@@ -998,10 +997,9 @@
               <div class="grupos-header" onclick="toggleGrupos('filtro-privados-body','filtro-privados-arrow')">
                 <span class="gh-left">
                   <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                  Contactos individuales
+                  Contactos — <span id="filtro-privados-contador" style="color:var(--accent);font-weight:600">ninguno seleccionado</span>
                 </span>
                 <div style="display:flex;align-items:center;gap:8px">
-                  <span id="filtro-privados-contador" class="grupos-cuenta" style="display:none"></span>
                   <svg id="filtro-privados-arrow" class="grupos-arrow" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>
                 </div>
               </div>
@@ -2429,9 +2427,10 @@ function populateFiltroLista(tipo, items, selected) {
 
 function actualizarContadorFiltro(tipo) {
   const cont = document.getElementById(`filtro-${tipo}-list`);
+  const total   = cont.querySelectorAll('input[type="checkbox"]').length;
   const checked = cont.querySelectorAll('input[type="checkbox"]:checked').length;
-  const badge = document.getElementById(`filtro-${tipo}-contador`);
-  if (badge) { badge.textContent = checked > 0 ? `${checked} sel.` : ''; badge.style.display = checked > 0 ? '' : 'none'; }
+  const el = document.getElementById(`filtro-${tipo}-contador`);
+  if (el) el.textContent = checked > 0 ? `${checked} de ${total} seleccionados` : 'ninguno seleccionado';
   actualizarAmbosDisponible();
 }
 

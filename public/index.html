@@ -967,16 +967,28 @@
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.88rem"><input type="radio" name="agente-filtro" value="todos" onchange="onFiltroChange()"> Todos los chats</label>
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.88rem"><input type="radio" name="agente-filtro" value="grupos" onchange="onFiltroChange()"> Solo grupos</label>
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.88rem"><input type="radio" name="agente-filtro" value="privados" onchange="onFiltroChange()"> Solo privados</label>
+              <label id="label-filtro-ambos" style="display:flex;align-items:center;gap:5px;cursor:not-allowed;font-size:.88rem;opacity:.4;transition:var(--trans)" title="Seleccioná al menos 1 grupo y 1 contacto para habilitar">
+                <input type="radio" name="agente-filtro" value="ambos" onchange="onFiltroChange()" disabled> Ambos
+                <svg id="ambos-lock" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+              </label>
             </div>
 
             <div id="filtro-grupos-panel" class="filtro-panel" style="display:none">
-              <div class="filtro-panel-header">Seleccioná los grupos a los que responderá. Dejá todos desmarcados para responder a cualquier grupo.</div>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                <span class="filtro-panel-header" style="flex:1">Grupos — <strong id="filtro-grupos-contador" style="color:var(--accent)">ninguno seleccionado</strong></span>
+                <button class="btn btn-ghost btn-sm" style="padding:3px 9px;font-size:.76rem" onclick="selTodosFiltro('grupos')">Todos</button>
+                <button class="btn btn-ghost btn-sm" style="padding:3px 9px;font-size:.76rem" onclick="limpiarFiltroLista('grupos')">Limpiar</button>
+              </div>
               <input type="text" id="filtro-grupos-search" placeholder="🔍 Buscar grupo..." style="margin-bottom:0" oninput="filtrarFiltroLista('grupos',this.value)">
               <div id="filtro-grupos-list" class="filtro-chat-list"></div>
             </div>
 
             <div id="filtro-privados-panel" class="filtro-panel" style="display:none">
-              <div class="filtro-panel-header">Seleccioná los contactos a los que responderá. Dejá todos desmarcados para responder a cualquier privado.</div>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                <span class="filtro-panel-header" style="flex:1">Contactos — <strong id="filtro-privados-contador" style="color:var(--accent)">ninguno seleccionado</strong></span>
+                <button class="btn btn-ghost btn-sm" style="padding:3px 9px;font-size:.76rem" onclick="selTodosFiltro('privados')">Todos</button>
+                <button class="btn btn-ghost btn-sm" style="padding:3px 9px;font-size:.76rem" onclick="limpiarFiltroLista('privados')">Limpiar</button>
+              </div>
               <input type="text" id="filtro-privados-search" placeholder="🔍 Buscar contacto..." style="margin-bottom:0" oninput="filtrarFiltroLista('privados',this.value)">
               <div id="filtro-privados-list" class="filtro-chat-list"></div>
             </div>
@@ -2289,6 +2301,12 @@ async function initPanelAgente() {
     const selected = new Set(data.chatsFiltros || []);
     populateFiltroLista('grupos', estado.grupos || [], selected);
     populateFiltroLista('privados', estado.contactos || [], selected);
+    // actualizarAmbosDisponible ya se llama desde actualizarContadorFiltro;
+    // si el filtro guardado era 'ambos', lo restauramos después de poblar las listas
+    if (filtro === 'ambos') {
+      const radioAmbos = document.querySelector('input[name="agente-filtro"][value="ambos"]');
+      if (radioAmbos && !radioAmbos.disabled) radioAmbos.checked = true;
+    }
     onFiltroChange();
     actualizarPillAgente(data.activo);
     // Pre-cargar la tab activa
@@ -2363,21 +2381,62 @@ function onProveedorChange() {
 // ── Filtro de chats ──────────────────────────────────────────────────────────
 function onFiltroChange() {
   const filtro = document.querySelector('input[name="agente-filtro"]:checked')?.value || 'todos';
-  document.getElementById('filtro-grupos-panel').style.display  = filtro === 'grupos'   ? '' : 'none';
-  document.getElementById('filtro-privados-panel').style.display = filtro === 'privados' ? '' : 'none';
+  document.getElementById('filtro-grupos-panel').style.display   = (filtro === 'grupos'   || filtro === 'ambos') ? '' : 'none';
+  document.getElementById('filtro-privados-panel').style.display = (filtro === 'privados' || filtro === 'ambos') ? '' : 'none';
 }
 
 function populateFiltroLista(tipo, items, selected) {
   const cont = document.getElementById(`filtro-${tipo}-list`);
   if (!items.length) {
     cont.innerHTML = `<p style="color:var(--text2);font-size:.82rem;padding:8px 4px">No hay ${tipo === 'grupos' ? 'grupos' : 'contactos'} disponibles — conecta WhatsApp primero.</p>`;
+    actualizarContadorFiltro(tipo);
     return;
   }
   cont.innerHTML = items.map(item => `
     <label class="filtro-chat-item">
-      <input type="checkbox" value="${escHTML(item.chatId)}" ${selected.has(item.chatId) ? 'checked' : ''}>
+      <input type="checkbox" value="${escHTML(item.chatId)}" ${selected.has(item.chatId) ? 'checked' : ''} onchange="actualizarContadorFiltro('${tipo}')">
       <span>${escHTML(item.nombre || item.chatId)}</span>
     </label>`).join('');
+  actualizarContadorFiltro(tipo);
+}
+
+function actualizarContadorFiltro(tipo) {
+  const cont = document.getElementById(`filtro-${tipo}-list`);
+  const total   = cont.querySelectorAll('input[type="checkbox"]').length;
+  const checked = cont.querySelectorAll('input[type="checkbox"]:checked').length;
+  const el = document.getElementById(`filtro-${tipo}-contador`);
+  if (el) el.textContent = checked > 0 ? `${checked} de ${total} seleccionados` : 'ninguno seleccionado';
+  actualizarAmbosDisponible();
+}
+
+function actualizarAmbosDisponible() {
+  const g = document.querySelectorAll('#filtro-grupos-list input[type="checkbox"]:checked').length;
+  const p = document.querySelectorAll('#filtro-privados-list input[type="checkbox"]:checked').length;
+  const ok = g > 0 && p > 0;
+  const label = document.getElementById('label-filtro-ambos');
+  const radio  = document.querySelector('input[name="agente-filtro"][value="ambos"]');
+  const lock   = document.getElementById('ambos-lock');
+  if (label) {
+    label.style.opacity = ok ? '' : '.4';
+    label.style.cursor  = ok ? 'pointer' : 'not-allowed';
+    label.title = ok ? '' : 'Seleccioná al menos 1 grupo y 1 contacto para habilitar';
+  }
+  if (radio) radio.disabled = !ok;
+  if (lock)  lock.style.display = ok ? 'none' : '';
+  if (!ok && radio?.checked) {
+    document.querySelector('input[name="agente-filtro"][value="todos"]').checked = true;
+    onFiltroChange();
+  }
+}
+
+function selTodosFiltro(tipo) {
+  document.querySelectorAll(`#filtro-${tipo}-list input[type="checkbox"]`).forEach(cb => { cb.checked = true; });
+  actualizarContadorFiltro(tipo);
+}
+
+function limpiarFiltroLista(tipo) {
+  document.querySelectorAll(`#filtro-${tipo}-list input[type="checkbox"]`).forEach(cb => { cb.checked = false; });
+  actualizarContadorFiltro(tipo);
 }
 
 function filtrarFiltroLista(tipo, q) {
@@ -2406,6 +2465,7 @@ async function guardarConfigAgente() {
   let chatsFiltros = [];
   if (filtro === 'grupos')   chatsFiltros = getFiltroSeleccionados('grupos');
   if (filtro === 'privados') chatsFiltros = getFiltroSeleccionados('privados');
+  if (filtro === 'ambos')    chatsFiltros = [...getFiltroSeleccionados('grupos'), ...getFiltroSeleccionados('privados')];
   const res = await fetch('/api/agente/config', {
     method:'PUT', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({ activo, apiKeys, modelo, proveedor, instruccionesExtra, filtro, chatsFiltros })

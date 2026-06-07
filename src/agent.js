@@ -95,6 +95,9 @@ async function procesarMensaje(chatId, texto) {
   } else if (agente.filtro === 'privados') {
     if (!esPrivado) return null;
     if (filtros.length > 0 && !filtros.includes(chatId)) return null;
+  } else if (agente.filtro === 'ambos') {
+    if (!esGrupo && !esPrivado) return null;
+    if (filtros.length > 0 && !filtros.includes(chatId)) return null;
   }
 
   // Respuestas rápidas tienen prioridad (sin costo de API)

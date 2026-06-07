@@ -1009,6 +1009,12 @@
           </div>
 
           <div class="field" style="margin-top:14px">
+            <label>Prefijo para invocarte a vos mismo <span style="color:var(--text2);font-weight:400">(opcional)</span></label>
+            <input type="text" id="agente-prefijo" placeholder="Ej: @ia" style="max-width:180px">
+            <p style="color:var(--text2);font-size:12px;margin-top:4px">Si escribís un mensaje en WhatsApp que empiece con este prefijo, el agente te responderá (solo aplica a tus propios mensajes).</p>
+          </div>
+
+          <div class="field" style="margin-top:14px">
             <label>Instrucciones adicionales <span style="color:var(--text2);font-weight:400">(opcional)</span></label>
             <textarea id="agente-instrucciones" rows="4" placeholder="Ej: Siempre saluda con el nombre de la empresa. No des precios sin consultar con un asesor. Responde solo sobre transporte de carga terrestre..."></textarea>
           </div>
@@ -2294,6 +2300,7 @@ async function initPanelAgente() {
     const data = await res.json();
     // Configuración
     document.getElementById('agente-activo').checked = !!data.activo;
+    document.getElementById('agente-prefijo').value = data.prefijoActivacion || '';
     document.getElementById('agente-instrucciones').value = data.instruccionesExtra || '';
     // Cargar claves por proveedor en cache local
     const apiKeys = data.apiKeys || {};
@@ -2479,6 +2486,7 @@ async function guardarConfigAgente() {
   const apiKeys = { ..._apiKeysCache };
   const modelo = document.getElementById('agente-modelo').value;
   const instruccionesExtra = document.getElementById('agente-instrucciones').value;
+  const prefijoActivacion = document.getElementById('agente-prefijo').value.trim();
   const filtro = document.querySelector('input[name="agente-filtro"]:checked')?.value || 'todos';
   const activo = document.getElementById('agente-activo').checked;
   let chatsFiltros = [];
@@ -2487,7 +2495,7 @@ async function guardarConfigAgente() {
   if (filtro === 'ambos')    chatsFiltros = [...getFiltroSeleccionados('grupos'), ...getFiltroSeleccionados('privados')];
   const res = await fetch('/api/agente/config', {
     method:'PUT', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ activo, apiKeys, modelo, proveedor, instruccionesExtra, filtro, chatsFiltros })
+    body: JSON.stringify({ activo, apiKeys, modelo, proveedor, instruccionesExtra, prefijoActivacion, filtro, chatsFiltros })
   });
   const data = await res.json();
   if (data.ok) { actualizarPillAgente(activo); toast(true, 'Configuración del agente guardada'); }

@@ -5,6 +5,9 @@ const fs = require('fs');
 const P = require('pino');
 const { procesarMensaje } = require('./agent');
 
+const CONFIG_PATH = path.resolve(__dirname, '../config.json');
+function leerConfig() { return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')); }
+
 let socket = null;
 let listo = false;
 let ultimoQR = null;
@@ -192,21 +195,34 @@ async function inicializar() {
   socket.ev.on('messages.upsert', async ({ messages, type }) => {
     if (type !== 'notify') return;
     for (const msg of messages) {
-      if (msg.key.fromMe) continue;
       if (!msg.message) continue;
       const chatId = msg.key.remoteJid;
       if (!chatId) continue;
-      const texto = msg.message.conversation ||
+      const textoRaw = msg.message.conversation ||
         msg.message.extendedTextMessage?.text ||
         msg.message.imageMessage?.caption ||
         msg.message.videoMessage?.caption || '';
-      if (!texto.trim()) continue;
-      // Registrar @lid en caché usando pushName del mensaje (si aún no está)
-      if (chatId.endsWith('@lid') && msg.pushName && !contactosCache.has(chatId)) {
-        contactosCache.set(chatId, msg.pushName);
-        guardarContactosCache();
-        log(`Contacto @lid registrado: ${chatId} → ${msg.pushName}`);
+      if (!textoRaw.trim()) continue;
+
+      let texto = textoRaw;
+
+      if (msg.key.fromMe) {
+        // Solo procesar mensajes propios si empiezan con el prefijo configurado
+        const { agente } = leerConfig();
+        const prefijo = agente?.prefijoActivacion?.trim();
+        if (!prefijo || !textoRaw.trimStart().toLowerCase().startsWith(prefijo.toLowerCase())) continue;
+        texto = textoRaw.trimStart().slice(prefijo.length).trim();
+        if (!texto) continue;
+        log(`Mensaje propio con prefijo "${prefijo}" detectado en ${chatId}`);
+      } else {
+        // Registrar @lid en caché usando pushName del mensaje (si aún no está)
+        if (chatId.endsWith('@lid') && msg.pushName && !contactosCache.has(chatId)) {
+          contactosCache.set(chatId, msg.pushName);
+          guardarContactosCache();
+          log(`Contacto @lid registrado: ${chatId} → ${msg.pushName}`);
+        }
       }
+
       // Normalizar @lid → @s.whatsapp.net para que coincida con el filtro guardado
       const chatIdFiltro = resolverLid(chatId);
       try {

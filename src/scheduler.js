@@ -84,16 +84,21 @@ function iniciarProgramaciones() {
   const config = leerConfig();
   const activas = config.programaciones.filter(p => p.activo);
   for (const prog of activas) {
-    if (!cron.validate(prog.cron)) {
-      console.warn(`[cron] Expresion invalida para "${prog.id}": ${prog.cron}`);
-      continue;
-    }
-    const trabajo = cron.schedule(prog.cron, () => {
-      console.log(`[cron] Ejecutando: ${prog.descripcion}`);
-      ejecutarProgramacion(prog);
+    const allCrons = [prog.cron, ...(prog.cronesExtra || [])];
+    allCrons.forEach((cronExpr, idx) => {
+      if (!cron.validate(cronExpr)) {
+        console.warn(`[cron] Expresion invalida para "${prog.id}" horario ${idx}: ${cronExpr}`);
+        return;
+      }
+      const key = idx === 0 ? prog.id : `${prog.id}:extra:${idx}`;
+      const trabajo = cron.schedule(cronExpr, () => {
+        console.log(`[cron] Ejecutando: ${prog.descripcion} (horario ${idx + 1})`);
+        ejecutarProgramacion(prog);
+      });
+      trabajos.set(key, trabajo);
+      if (idx === 0) console.log(`✓ Programacion activa: "${prog.descripcion}" (${cronExpr})`);
+      else console.log(`  + Horario extra ${idx}: ${cronExpr}`);
     });
-    trabajos.set(prog.id, trabajo);
-    console.log(`✓ Programacion activa: "${prog.descripcion}" (${prog.cron})`);
   }
 }
 

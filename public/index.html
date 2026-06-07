@@ -733,12 +733,9 @@
         <div class="field"><label>Descripción</label><input type="text" id="np-desc" placeholder="Ej: Reporte semanal lunes"></div>
         <div class="form-row2">
           <div class="field">
-            <label>Hora de envío</label>
-            <div style="display:flex;gap:6px;align-items:center">
-              <select id="np-hora" class="cron-sel"></select>
-              <span style="color:var(--text2);font-weight:700;font-size:1.1rem">:</span>
-              <select id="np-minuto" class="cron-sel"></select>
-            </div>
+            <label>Hora(s) de envío</label>
+            <div id="np-horarios"></div>
+            <button type="button" class="link-btn" onclick="agregarHorario('np')" style="margin-top:5px;font-size:.82rem">+ Agregar horario</button>
           </div>
           <div class="field">
             <label>Repetición</label>
@@ -1165,6 +1162,8 @@ async function mostrarQR() {
 // ── Navegación ───────────────────────────────────────────────────────────────
 
 function mostrarPanel(id, btn) {
+  document.querySelectorAll('.abierto').forEach(el => el.classList.remove('abierto'));
+  document.querySelectorAll('.grupos-arrow.open').forEach(el => el.classList.remove('open'));
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('panel-' + id).classList.add('active');
@@ -1571,7 +1570,7 @@ function renderizarProgramaciones() {
       </div>
       <div id="edit-${p.id}" class="prog-edit-form">
         <div class="field"><label>Descripción</label><input type="text" id="ed-desc-${p.id}" value="${(p.descripcion||'').replace(/"/g,'&quot;')}"></div>
-        ${cronUIHtml('ed-' + p.id, p.cron)}
+        ${cronUIHtml('ed-' + p.id, p.cron, p.cronesExtra || [])}
         <div class="field"><label>Mensaje</label><textarea id="ed-msg-${p.id}" style="min-height:60px">${p.mensaje||''}</textarea></div>
         <div class="field">
           <label>Archivos adjuntos</label>
@@ -1608,6 +1607,7 @@ function renderizarProgramaciones() {
     actualizarCuentaSelector(`ec-${p.id}-list`, `ec-${p.id}-cnt`);
     // Init calendar for this edit form
     initCal(`ed-${p.id}`, p.fechasEspecificas || null);
+    actualizarBotonesEliminar(`ed-${p.id}`);
   });
 }
 
@@ -1615,8 +1615,9 @@ function toggleNuevaProg() { document.getElementById('form-nueva-prog').classLis
 function toggleEditProg(id) { document.getElementById('edit-'+id).classList.toggle('open'); }
 
 async function crearProgramacion() {
-  const cron = buildCronFromUI('np');
-  if (!cron) { toast(false, 'Selecciona al menos un día o fecha'); return; }
+  const cronData = buildCronFromUI('np');
+  if (!cronData) { toast(false, 'Selecciona al menos un día o fecha'); return; }
+  const { cron, cronesExtra } = cronData;
 
   // Subir archivos nuevos primero
   let archivos = [];
@@ -1641,6 +1642,7 @@ async function crearProgramacion() {
   const body = {
     descripcion: document.getElementById('np-desc').value,
     cron,
+    cronesExtra,
     mensaje: document.getElementById('np-msg').value,
     asuntoEmail: document.getElementById('np-asunto').value,
     activo: document.getElementById('np-activo').checked,
@@ -1656,8 +1658,9 @@ async function crearProgramacion() {
 }
 
 async function guardarProg(id) {
-  const cron = buildCronFromUI('ed-' + id);
-  if (!cron) { toast(false, 'Selecciona al menos un día o fecha'); return; }
+  const cronData = buildCronFromUI('ed-' + id);
+  if (!cronData) { toast(false, 'Selecciona al menos un día o fecha'); return; }
+  const { cron, cronesExtra } = cronData;
 
   // Subir archivos nuevos y combinar con los guardados existentes
   let archivosNuevosGuardados = [];
@@ -1685,6 +1688,7 @@ async function guardarProg(id) {
   const body = {
     descripcion: document.getElementById(`ed-desc-${id}`).value,
     cron,
+    cronesExtra,
     mensaje: document.getElementById(`ed-msg-${id}`).value,
     asuntoEmail: document.getElementById(`ed-asunto-${id}`).value,
     activo: document.getElementById(`ed-activo-${id}`).checked,
@@ -1769,15 +1773,10 @@ document.head.appendChild(style);
 
 // ── Cron UI ──────────────────────────────────────────────────────────────────
 
-function cronUIHtml(prefix, cronStr) {
+function cronUIHtml(prefix, cronStr, cronesExtra) {
   const parts = (cronStr || '0 9 * * *').trim().split(/\s+/);
   const minP = parts[0]||'0', horaP = parts[1]||'9', domP = parts[2]||'*', monP = parts[3]||'*', dowP = parts[4]||'*';
-  const hora = String(parseInt(horaP)||0).padStart(2,'0');
-  const minRaw = String(parseInt(minP)||0).padStart(2,'0');
-  const minOk = ['00','05','10','15','20','25','30','35','40','45','50','55'];
-  const min = minOk.includes(minRaw) ? minRaw : '00';
   const dom = domP !== '*' ? domP : '1';
-  // Detect freq type: 'fechas' = comma-separated specific days (no ranges) with possible specific months
   let freqType;
   if (domP !== '*' && dowP === '*') {
     freqType = (domP.includes(',') && !domP.includes('-')) ? 'fechas' : 'mes';
@@ -1786,19 +1785,15 @@ function cronUIHtml(prefix, cronStr) {
   }
   const diasSel = dowP !== '*' ? dowP.split(',').map(d => d.trim()) : [];
   const diasDef = [{v:'1',l:'Lu'},{v:'2',l:'Ma'},{v:'3',l:'Mi'},{v:'4',l:'Ju'},{v:'5',l:'Vi'},{v:'6',l:'Sa'},{v:'0',l:'Do'}];
-  const horaOpts = Array.from({length:24},(_,i)=>{const v=String(i).padStart(2,'0');return`<option value="${v}"${v===hora?' selected':''}>${v}</option>`;}).join('');
-  const minOpts = minOk.map(m=>`<option value="${m}"${m===min?' selected':''}>${m}</option>`).join('');
   const diasHtml = diasDef.map(d=>`<label class="dia-label${diasSel.includes(d.v)?' activo':''}"><input type="checkbox" value="${d.v}"${diasSel.includes(d.v)?' checked':''} onchange="actualizarDiaLabel(this)">${d.l}</label>`).join('');
-  // Pre-selection data for calendar (stored as data attrs, initCal reads after DOM insert)
   const preD = freqType === 'fechas' ? domP.split(',').map(n=>parseInt(n)) : [];
   const preM = (freqType === 'fechas' && monP !== '*') ? monP.split(',').map(n=>parseInt(n)) : [];
+  const todosLosHorarios = [parseCronHorario(cronStr), ...(cronesExtra||[]).map(c=>parseCronHorario(c))];
+  const horariosHtml = todosLosHorarios.map(h=>crearHorarioItemHtml(prefix, h.hora, h.min)).join('');
   return `<div class="form-row2">
-    <div class="field"><label>Hora de envío</label>
-      <div style="display:flex;gap:6px;align-items:center">
-        <select id="${prefix}-hora" class="cron-sel">${horaOpts}</select>
-        <span style="color:var(--text2);font-weight:700;font-size:1.1rem">:</span>
-        <select id="${prefix}-minuto" class="cron-sel">${minOpts}</select>
-      </div>
+    <div class="field"><label>Hora(s) de envío</label>
+      <div id="${prefix}-horarios">${horariosHtml}</div>
+      <button type="button" class="link-btn" onclick="agregarHorario('${prefix}')" style="margin-top:5px;font-size:.82rem">+ Agregar horario</button>
     </div>
     <div class="field"><label>Repetición</label>
       <div class="freq-tabs">
@@ -1840,29 +1835,100 @@ function cronUIHtml(prefix, cronStr) {
   </div>`;
 }
 
+// ── Horarios múltiples ───────────────────────────────────────────────────────
+
+const _MIN_VALS = ['00','05','10','15','20','25','30','35','40','45','50','55'];
+
+function _horaOptsHtml(sel) {
+  return Array.from({length:24},(_,i)=>{const v=String(i).padStart(2,'0');return`<option value="${v}"${v===sel?' selected':''}>${v}</option>`;}).join('');
+}
+function _minOptsHtml(sel) {
+  return _MIN_VALS.map(m=>`<option value="${m}"${m===sel?' selected':''}>${m}</option>`).join('');
+}
+
+function parseCronHorario(cronStr) {
+  const parts = (cronStr || '0 9 * * *').trim().split(/\s+/);
+  const minRaw = String(parseInt(parts[0])||0).padStart(2,'0');
+  const horaRaw = String(parseInt(parts[1])||9).padStart(2,'0');
+  return { hora: horaRaw, min: _MIN_VALS.includes(minRaw) ? minRaw : '00' };
+}
+
+function crearHorarioItemHtml(prefix, hora='09', min='00') {
+  return `<div class="horario-item" style="display:flex;gap:6px;align-items:center;margin-bottom:5px">
+    <select data-role="hora" class="cron-sel">${_horaOptsHtml(hora)}</select>
+    <span style="color:var(--text2);font-weight:700;font-size:1.1rem">:</span>
+    <select data-role="minuto" class="cron-sel">${_minOptsHtml(min)}</select>
+    <button type="button" onclick="eliminarHorario('${prefix}',this)" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:1.2rem;padding:0 4px;line-height:1;visibility:hidden" title="Eliminar">×</button>
+  </div>`;
+}
+
+function agregarHorario(prefix) {
+  const c = document.getElementById(`${prefix}-horarios`);
+  if (!c) return;
+  c.insertAdjacentHTML('beforeend', crearHorarioItemHtml(prefix, '09', '00'));
+  actualizarBotonesEliminar(prefix);
+}
+
+function eliminarHorario(prefix, btn) {
+  const c = document.getElementById(`${prefix}-horarios`);
+  if (!c) return;
+  const item = btn.closest('.horario-item');
+  if (c.querySelectorAll('.horario-item').length > 1) item.remove();
+  actualizarBotonesEliminar(prefix);
+}
+
+function actualizarBotonesEliminar(prefix) {
+  const c = document.getElementById(`${prefix}-horarios`);
+  if (!c) return;
+  const items = c.querySelectorAll('.horario-item');
+  items.forEach(item => {
+    const btn = item.querySelector('button');
+    if (btn) btn.style.visibility = items.length > 1 ? 'visible' : 'hidden';
+  });
+}
+
 function buildCronFromUI(prefix) {
-  const hora = parseInt(document.getElementById(`${prefix}-hora`)?.value || '9');
-  const min  = parseInt(document.getElementById(`${prefix}-minuto`)?.value || '0');
+  const c = document.getElementById(`${prefix}-horarios`);
+  let horarios;
+  if (c && c.querySelectorAll('.horario-item').length) {
+    horarios = [...c.querySelectorAll('.horario-item')].map(item => ({
+      hora: parseInt(item.querySelector('[data-role="hora"]')?.value || '9'),
+      min:  parseInt(item.querySelector('[data-role="minuto"]')?.value || '0')
+    }));
+  } else {
+    horarios = [{
+      hora: parseInt(document.getElementById(`${prefix}-hora`)?.value || '9'),
+      min:  parseInt(document.getElementById(`${prefix}-minuto`)?.value || '0')
+    }];
+  }
+
   const mesEl    = document.getElementById(`freq-${prefix}-mes`);
   const semanaEl = document.getElementById(`freq-${prefix}-semana`);
   const fechasEl = document.getElementById(`freq-${prefix}-fechas`);
-  if (mesEl && mesEl.style.display !== 'none') {
-    const dom = (document.getElementById(`${prefix}-dom`)?.value || '1').trim();
-    return `${min} ${hora} ${dom} * *`;
+
+  function makeCron(h) {
+    if (mesEl && mesEl.style.display !== 'none') {
+      const dom = (document.getElementById(`${prefix}-dom`)?.value || '1').trim();
+      return `${h.min} ${h.hora} ${dom} * *`;
+    }
+    if (fechasEl && fechasEl.style.display !== 'none') {
+      const state = calState[prefix];
+      if (!state) return null;
+      const hasDays = [...(state.monthDays || new Map()).values()].some(s => s.size > 0);
+      if (!hasDays) return null;
+      return `${h.min} ${h.hora} * * *`;
+    }
+    if (semanaEl && semanaEl.style.display !== 'none') {
+      const dias = [...document.querySelectorAll(`#freq-${prefix}-semana input:checked`)].map(cb => cb.value);
+      if (!dias.length) return null;
+      return `${h.min} ${h.hora} * * ${dias.join(',')}`;
+    }
+    return `${h.min} ${h.hora} * * *`;
   }
-  if (fechasEl && fechasEl.style.display !== 'none') {
-    const state = calState[prefix];
-    if (!state) return null;
-    const hasDays = [...(state.monthDays || new Map()).values()].some(s => s.size > 0);
-    if (!hasDays) return null;
-    return `${min} ${hora} * * *`; // scheduler filters by fechasEspecificas
-  }
-  if (semanaEl && semanaEl.style.display !== 'none') {
-    const dias = [...document.querySelectorAll(`#freq-${prefix}-semana input:checked`)].map(cb => cb.value);
-    if (!dias.length) return null;
-    return `${min} ${hora} * * ${dias.join(',')}`;
-  }
-  return `${min} ${hora} * * *`;
+
+  const crons = horarios.map(makeCron);
+  if (crons.some(c => c === null)) return null;
+  return { cron: crons[0], cronesExtra: crons.slice(1) };
 }
 
 function setFreqPanel(prefix, tipo, btn) {
@@ -2271,13 +2337,12 @@ document.addEventListener('click', (e) => {
 
 try { initEmojiPicker(); } catch(e) { console.warn('Emoji picker init error:', e); }
 
-// Poblar selects hora/minuto e inicializar calendario del formulario nueva programación
+// Inicializar horarios y calendario del formulario nueva programación
 (function() {
-  const hs = document.getElementById('np-hora');
-  const ms = document.getElementById('np-minuto');
-  if (hs && ms) {
-    for (let i = 0; i < 24; i++) { const v = String(i).padStart(2,'0'); hs.innerHTML += `<option value="${v}"${v==='09'?' selected':''}>${v}</option>`; }
-    ['00','05','10','15','20','25','30','35','40','45','50','55'].forEach(m => { ms.innerHTML += `<option value="${m}">${m}</option>`; });
+  const npHorarios = document.getElementById('np-horarios');
+  if (npHorarios) {
+    npHorarios.innerHTML = crearHorarioItemHtml('np', '09', '00');
+    actualizarBotonesEliminar('np');
   }
   initCal('np', null);
 })();

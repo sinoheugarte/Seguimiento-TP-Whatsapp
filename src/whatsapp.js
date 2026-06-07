@@ -41,9 +41,13 @@ function guardarContactosCache() {
   }, 2000); // debounce 2s para no escribir en cada evento
 }
 
+function esContactoPrivado(id) {
+  return id.endsWith('@s.whatsapp.net') || id.endsWith('@lid');
+}
+
 function procesarContacto(c) {
-  if (!c.id || !c.id.endsWith('@s.whatsapp.net')) return;
-  const nombre = c.name || c.notify || c.verifiedName || c.id.replace('@s.whatsapp.net', '');
+  if (!c.id || !esContactoPrivado(c.id)) return;
+  const nombre = c.name || c.notify || c.verifiedName || c.id.replace(/@s\.whatsapp\.net$|@lid$/, '');
   contactosCache.set(c.id, nombre);
   guardarContactosCache();
 }
@@ -119,9 +123,9 @@ async function inicializar() {
   socket.ev.on('messaging-history.set', ({ contacts = [], chats = [] }) => {
     for (const c of contacts) procesarContacto(c);
     for (const c of chats) {
-      if (!c.id || !c.id.endsWith('@s.whatsapp.net')) continue;
+      if (!c.id || !esContactoPrivado(c.id)) continue;
       if (contactosCache.has(c.id)) continue;
-      const nombre = c.name || c.id.replace('@s.whatsapp.net', '');
+      const nombre = c.name || c.id.replace(/@s\.whatsapp\.net$|@lid$/, '');
       contactosCache.set(c.id, nombre);
     }
     guardarContactosCache();
@@ -140,16 +144,16 @@ async function inicializar() {
   // Chats nuevos/actualizados: extraer contactos individuales
   socket.ev.on('chats.upsert', (chats) => {
     for (const c of chats) {
-      if (!c.id || !c.id.endsWith('@s.whatsapp.net')) continue;
+      if (!c.id || !esContactoPrivado(c.id)) continue;
       if (contactosCache.has(c.id)) continue;
-      const nombre = c.name || c.id.replace('@s.whatsapp.net', '');
+      const nombre = c.name || c.id.replace(/@s\.whatsapp\.net$|@lid$/, '');
       contactosCache.set(c.id, nombre);
     }
   });
 
   socket.ev.on('chats.update', (chats) => {
     for (const c of chats) {
-      if (!c.id || !c.id.endsWith('@s.whatsapp.net')) continue;
+      if (!c.id || !esContactoPrivado(c.id)) continue;
       if (!c.name) continue;
       contactosCache.set(c.id, c.name);
     }

@@ -86,7 +86,7 @@ async function procesarMensaje(chatId, texto) {
   if (!agente?.activo) return null;
 
   const esGrupo = chatId.endsWith('@g.us');
-  const esPrivado = chatId.endsWith('@s.whatsapp.net');
+  const esPrivado = chatId.endsWith('@s.whatsapp.net') || chatId.endsWith('@lid');
   const filtro = agente.filtro || 'todos';
   const filtros = agente.chatsFiltros || [];
 

@@ -732,8 +732,8 @@
         </div>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;padding:10px 12px;background:var(--bg2);border-radius:8px;border:1px dashed var(--border)">
           <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0;color:var(--text2)"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-          <select id="np-copiar-select" style="flex:1;font-size:.83rem;background:var(--bg3);border:1px solid var(--border);color:var(--text1);border-radius:6px;padding:5px 8px">
-            <option value="">Copiar datos de una programación existente (opcional)...</option>
+          <select id="np-copiar-select" style="flex:1;font-size:.83rem;background:#1e2736;border:1px solid var(--border);color:#e2e8f0;border-radius:6px;padding:5px 8px">
+            <option value="" style="background:#1e2736;color:#e2e8f0">Copiar datos de una programación existente (opcional)...</option>
           </select>
           <button type="button" class="btn btn-ghost btn-sm" onclick="copiarDeProgramacion()" style="white-space:nowrap;font-size:.82rem">Copiar</button>
         </div>
@@ -1660,8 +1660,8 @@ function resetFormNuevaProg() {
   const sel = document.getElementById('np-copiar-select');
   if (sel) {
     const progs = estado.programaciones || [];
-    sel.innerHTML = '<option value="">Copiar datos de una programación existente (opcional)...</option>' +
-      progs.map(p => `<option value="${escHTML(p.id)}">${escHTML(p.descripcion || p.id)}</option>`).join('');
+    sel.innerHTML = '<option value="" style="background:#1e2736;color:#e2e8f0">Copiar datos de una programación existente (opcional)...</option>' +
+      progs.map(p => `<option value="${escHTML(p.id)}" style="background:#1e2736;color:#e2e8f0">${escHTML(p.descripcion || p.id)}</option>`).join('');
   }
 }
 

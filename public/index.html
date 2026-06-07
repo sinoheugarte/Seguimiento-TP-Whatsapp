@@ -730,6 +730,13 @@
           <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="vertical-align:middle;margin-right:4px"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
           Nueva programación automática
         </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;padding:10px 12px;background:var(--bg2);border-radius:8px;border:1px dashed var(--border)">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0;color:var(--text2)"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          <select id="np-copiar-select" style="flex:1;font-size:.83rem;background:var(--bg3);border:1px solid var(--border);color:var(--text1);border-radius:6px;padding:5px 8px">
+            <option value="">Copiar datos de una programación existente (opcional)...</option>
+          </select>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="copiarDeProgramacion()" style="white-space:nowrap;font-size:.82rem">Copiar</button>
+        </div>
         <div class="field"><label>Descripción</label><input type="text" id="np-desc" placeholder="Ej: Reporte semanal lunes"></div>
         <div class="form-row2">
           <div class="field">
@@ -1611,7 +1618,104 @@ function renderizarProgramaciones() {
   });
 }
 
-function toggleNuevaProg() { document.getElementById('form-nueva-prog').classList.toggle('open'); }
+function toggleNuevaProg() {
+  const form = document.getElementById('form-nueva-prog');
+  const abriendo = !form.classList.contains('open');
+  form.classList.toggle('open');
+  if (abriendo) resetFormNuevaProg();
+}
+
+function resetFormNuevaProg() {
+  // Campos de texto
+  document.getElementById('np-desc').value = '';
+  document.getElementById('np-msg').value = '';
+  document.getElementById('np-email').value = '';
+  document.getElementById('np-asunto').value = '';
+  document.getElementById('np-dom').value = '1';
+  document.getElementById('np-activo').checked = true;
+  // Horarios → un solo slot 09:00
+  const npH = document.getElementById('np-horarios');
+  if (npH) { npH.innerHTML = crearHorarioItemHtml('np', '09', '00'); actualizarBotonesEliminar('np'); }
+  // Frecuencia → volver a "Días"
+  const btnDias = document.querySelector('#form-nueva-prog .freq-tab');
+  if (btnDias) setFreqPanel('np', 'semana', btnDias);
+  // Días de semana → desmarcar todo
+  document.querySelectorAll('#freq-np-semana input[type="checkbox"]').forEach(cb => {
+    cb.checked = false;
+    cb.closest('.dia-label')?.classList.remove('activo');
+  });
+  // Calendario → limpiar
+  if (calState['np']) calLimpiar('np');
+  // Archivos → limpiar
+  archivosMap['np-files-input'] = [];
+  const inputArchivos = document.getElementById('np-files-input');
+  if (inputArchivos) inputArchivos.value = '';
+  document.getElementById('np-archivos-lista').innerHTML = '';
+  // Grupos/Contactos → desmarcar todo
+  document.querySelectorAll('#np-gp-list input[type="checkbox"]').forEach(cb => cb.checked = false);
+  document.querySelectorAll('#np-ct-list input[type="checkbox"]').forEach(cb => cb.checked = false);
+  actualizarCuentaSelector('np-gp-list', 'np-gp-cnt');
+  actualizarCuentaSelector('np-ct-list', 'np-ct-cnt');
+  // Selector de copia → poblar con programaciones actuales
+  const sel = document.getElementById('np-copiar-select');
+  if (sel) {
+    const progs = estado.programaciones || [];
+    sel.innerHTML = '<option value="">Copiar datos de una programación existente (opcional)...</option>' +
+      progs.map(p => `<option value="${escHTML(p.id)}">${escHTML(p.descripcion || p.id)}</option>`).join('');
+  }
+}
+
+function copiarDeProgramacion() {
+  const sel = document.getElementById('np-copiar-select');
+  const id = sel?.value;
+  if (!id) { toast(false, 'Seleccioná una programación de la lista'); return; }
+  const prog = (estado.programaciones || []).find(p => p.id === id);
+  if (!prog) return;
+
+  document.getElementById('np-desc').value = prog.descripcion || '';
+  document.getElementById('np-msg').value = prog.mensaje || '';
+  document.getElementById('np-email').value = (prog.destinatariosEmail || []).join(', ');
+  document.getElementById('np-asunto').value = prog.asuntoEmail || '';
+  document.getElementById('np-activo').checked = !!prog.activo;
+
+  // Horarios
+  const todosHorarios = [parseCronHorario(prog.cron), ...(prog.cronesExtra || []).map(c => parseCronHorario(c))];
+  const npH = document.getElementById('np-horarios');
+  if (npH) { npH.innerHTML = todosHorarios.map(h => crearHorarioItemHtml('np', h.hora, h.min)).join(''); actualizarBotonesEliminar('np'); }
+
+  // Tipo de frecuencia
+  const parts = (prog.cron || '0 9 * * *').split(/\s+/);
+  const domP = parts[2] || '*', dowP = parts[4] || '*';
+  let freqTipo;
+  if (domP !== '*' && dowP === '*') freqTipo = (domP.includes(',') && !domP.includes('-')) ? 'fechas' : 'mes';
+  else freqTipo = dowP !== '*' ? 'semana' : 'diario';
+  const freqBtns = document.querySelectorAll('#form-nueva-prog .freq-tab');
+  const freqIdx = { semana: 0, diario: 1, mes: 2, fechas: 3 };
+  const btnTarget = freqBtns[freqIdx[freqTipo]];
+  if (btnTarget) setFreqPanel('np', freqTipo, btnTarget);
+
+  // Días de semana
+  document.querySelectorAll('#freq-np-semana input[type="checkbox"]').forEach(cb => {
+    cb.checked = false; cb.closest('.dia-label')?.classList.remove('activo');
+  });
+  if (freqTipo === 'semana' && dowP !== '*') {
+    dowP.split(',').forEach(d => {
+      const cb = document.querySelector(`#freq-np-semana input[value="${d.trim()}"]`);
+      if (cb) { cb.checked = true; cb.closest('.dia-label')?.classList.add('activo'); }
+    });
+  }
+  if (freqTipo === 'mes') document.getElementById('np-dom').value = domP !== '*' ? domP : '1';
+  if (freqTipo === 'fechas') initCal('np', prog.fechasEspecificas || null);
+
+  // Destinatarios WhatsApp
+  const destWA = new Set(prog.destinatariosWhatsapp || []);
+  document.querySelectorAll('#np-gp-list input[type="checkbox"]').forEach(cb => cb.checked = destWA.has(cb.value));
+  document.querySelectorAll('#np-ct-list input[type="checkbox"]').forEach(cb => cb.checked = destWA.has(cb.value));
+  actualizarCuentaSelector('np-gp-list', 'np-gp-cnt');
+  actualizarCuentaSelector('np-ct-list', 'np-ct-cnt');
+
+  toast(true, `Datos copiados de "${prog.descripcion || prog.id}"`);
+}
 function toggleEditProg(id) { document.getElementById('edit-'+id).classList.toggle('open'); }
 
 async function crearProgramacion() {
@@ -1655,14 +1759,6 @@ async function crearProgramacion() {
   const data = await res.json();
   if (data.ok) {
     toggleNuevaProg();
-    // Resetear horarios a un solo campo
-    const npH = document.getElementById('np-horarios');
-    if (npH) { npH.innerHTML = crearHorarioItemHtml('np', '09', '00'); actualizarBotonesEliminar('np'); }
-    // Resetear días de la semana
-    document.querySelectorAll('#freq-np-semana input[type="checkbox"]').forEach(cb => {
-      cb.checked = false;
-      cb.closest('.dia-label')?.classList.remove('activo');
-    });
     await cargarEstado();
     toast(true,'Programación creada');
   } else toast(false, data.error);

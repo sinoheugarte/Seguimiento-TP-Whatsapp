@@ -117,6 +117,17 @@
     .rr-text { font-size:.84rem; color:var(--text2); line-height:1.55; border-left:2px solid var(--border); padding-left:10px; }
     .rr-inactive { opacity:.45; }
 
+    /* ── Filtro chat list ── */
+    .filtro-chat-list { max-height:200px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; padding:6px; scrollbar-width:thin; scrollbar-color:#2a3a4a transparent; margin-top:6px; }
+    .filtro-chat-list::-webkit-scrollbar { width:4px; }
+    .filtro-chat-list::-webkit-scrollbar-thumb { background:#2a3a4a; border-radius:4px; }
+    .filtro-chat-item { display:flex; align-items:center; gap:8px; padding:7px 8px; border-radius:6px; cursor:pointer; transition:var(--trans); }
+    .filtro-chat-item:hover { background:rgba(0,200,150,.08); }
+    .filtro-chat-item span { font-size:.88rem; flex:1; cursor:pointer; }
+    .filtro-chat-item input[type="checkbox"] { accent-color:var(--accent); width:15px; height:15px; flex-shrink:0; }
+    .filtro-panel { background:var(--surface2); border-radius:10px; padding:12px 14px; margin-top:10px; }
+    .filtro-panel-header { font-size:.8rem; color:var(--text2); margin-bottom:8px; }
+
     /* ── Agente pill status ── */
     .agente-pill { display:inline-flex; align-items:center; gap:7px; padding:5px 14px; border-radius:20px; font-size:.8rem; font-weight:600; margin-bottom:20px; }
     .agente-pill.on { background:rgba(0,200,150,.15); color:#00c896; border:1px solid rgba(0,200,150,.3); }
@@ -924,31 +935,47 @@
 
           <div class="form-row2">
             <div class="field">
-              <label>API Key de Anthropic (Claude)</label>
-              <div style="display:flex;gap:8px;align-items:center">
-                <input type="password" id="agente-apikey" placeholder="sk-ant-..." style="flex:1">
-                <button class="btn btn-ghost btn-sm" onclick="toggleApiKeyVisibility()" title="Ver/ocultar">
-                  <svg id="apikey-eye" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                </button>
-              </div>
-              <p class="hint">Obténla en <strong>console.anthropic.com</strong></p>
-            </div>
-            <div class="field">
-              <label>Modelo de IA</label>
-              <select id="agente-modelo">
-                <option value="claude-haiku-4-5-20251001">Claude Haiku (rápido · económico)</option>
-                <option value="claude-sonnet-4-6">Claude Sonnet (equilibrado)</option>
-                <option value="claude-opus-4-8">Claude Opus (más capaz)</option>
+              <label>Proveedor de IA</label>
+              <select id="agente-proveedor" onchange="onProveedorChange()">
+                <option value="anthropic">🤖 Anthropic (Claude)</option>
+                <option value="gemini">✨ Google (Gemini)</option>
+                <option value="groq">⚡ Groq (Llama · capa gratuita)</option>
               </select>
             </div>
+            <div class="field">
+              <label>Modelo</label>
+              <select id="agente-modelo"></select>
+            </div>
+          </div>
+          <div class="field" style="margin-top:14px">
+            <label>API Key <span id="agente-apikey-provider-label" style="color:var(--text2);font-weight:400">(Anthropic)</span></label>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="password" id="agente-apikey" placeholder="sk-ant-..." style="flex:1">
+              <button class="btn btn-ghost btn-sm" onclick="toggleApiKeyVisibility()" title="Ver/ocultar">
+                <svg id="apikey-eye" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            <p class="hint" id="agente-apikey-hint">Obténla en <strong>console.anthropic.com</strong></p>
           </div>
 
           <div class="field" style="margin-top:14px">
             <label>Filtro de chats</label>
             <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
-              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.88rem"><input type="radio" name="agente-filtro" value="todos" onchange="guardarFiltroAgente()"> Todos los chats</label>
-              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.88rem"><input type="radio" name="agente-filtro" value="grupos" onchange="guardarFiltroAgente()"> Solo grupos</label>
-              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.88rem"><input type="radio" name="agente-filtro" value="privados" onchange="guardarFiltroAgente()"> Solo privados</label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.88rem"><input type="radio" name="agente-filtro" value="todos" onchange="onFiltroChange()"> Todos los chats</label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.88rem"><input type="radio" name="agente-filtro" value="grupos" onchange="onFiltroChange()"> Solo grupos</label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.88rem"><input type="radio" name="agente-filtro" value="privados" onchange="onFiltroChange()"> Solo privados</label>
+            </div>
+
+            <div id="filtro-grupos-panel" class="filtro-panel" style="display:none">
+              <div class="filtro-panel-header">Seleccioná los grupos a los que responderá. Dejá todos desmarcados para responder a cualquier grupo.</div>
+              <input type="text" id="filtro-grupos-search" placeholder="🔍 Buscar grupo..." style="margin-bottom:0" oninput="filtrarFiltroLista('grupos',this.value)">
+              <div id="filtro-grupos-list" class="filtro-chat-list"></div>
+            </div>
+
+            <div id="filtro-privados-panel" class="filtro-panel" style="display:none">
+              <div class="filtro-panel-header">Seleccioná los contactos a los que responderá. Dejá todos desmarcados para responder a cualquier privado.</div>
+              <input type="text" id="filtro-privados-search" placeholder="🔍 Buscar contacto..." style="margin-bottom:0" oninput="filtrarFiltroLista('privados',this.value)">
+              <div id="filtro-privados-list" class="filtro-chat-list"></div>
             </div>
           </div>
 
@@ -2240,11 +2267,21 @@ async function initPanelAgente() {
     // Configuración
     document.getElementById('agente-activo').checked = !!data.activo;
     document.getElementById('agente-apikey').value = data.apiKey || '';
-    document.getElementById('agente-modelo').value = data.modelo || 'claude-haiku-4-5-20251001';
     document.getElementById('agente-instrucciones').value = data.instruccionesExtra || '';
+    // Proveedor y modelo
+    const proveedor = data.proveedor || 'anthropic';
+    document.getElementById('agente-proveedor').value = proveedor;
+    onProveedorChange();
+    if (data.modelo) document.getElementById('agente-modelo').value = data.modelo;
+    // Filtro
     const filtro = data.filtro || 'todos';
     const radioFiltro = document.querySelector(`input[name="agente-filtro"][value="${filtro}"]`);
     if (radioFiltro) radioFiltro.checked = true;
+    // Poblar listas de grupos y contactos
+    const selected = new Set(data.chatsFiltros || []);
+    populateFiltroLista('grupos', estado.grupos || [], selected);
+    populateFiltroLista('privados', estado.contactos || [], selected);
+    onFiltroChange();
     actualizarPillAgente(data.activo);
     // Pre-cargar la tab activa
     const tabActiva = document.querySelector('#panel-agente .tab-btn.active');
@@ -2266,20 +2303,90 @@ async function guardarConfigAgenteToggle() {
   actualizarPillAgente(activo);
 }
 
-function guardarFiltroAgente() {
+// ── Proveedor y modelos ──────────────────────────────────────────────────────
+const MODELOS_PROVEEDOR = {
+  anthropic: [
+    { val:'claude-haiku-4-5-20251001', label:'Claude Haiku — rápido · económico' },
+    { val:'claude-sonnet-4-6',         label:'Claude Sonnet — equilibrado' },
+    { val:'claude-opus-4-8',           label:'Claude Opus — más capaz' }
+  ],
+  gemini: [
+    { val:'gemini-2.0-flash',   label:'Gemini 2.0 Flash — muy rápido' },
+    { val:'gemini-1.5-flash',   label:'Gemini 1.5 Flash — económico' },
+    { val:'gemini-1.5-pro',     label:'Gemini 1.5 Pro — avanzado' }
+  ],
+  groq: [
+    { val:'llama-3.1-8b-instant',     label:'Llama 3.1 8B Instant — ultra rápido' },
+    { val:'llama-3.3-70b-versatile',  label:'Llama 3.3 70B — equilibrado' },
+    { val:'mixtral-8x7b-32768',       label:'Mixtral 8x7B — alta capacidad' }
+  ]
+};
+const APIKEY_INFO = {
+  anthropic: { label:'(Anthropic)', ph:'sk-ant-...',  hint:'Obténla en <strong>console.anthropic.com</strong>' },
+  gemini:    { label:'(Google AI)', ph:'AIza...',     hint:'Obténla en <strong>aistudio.google.com</strong>' },
+  groq:      { label:'(Groq)',      ph:'gsk_...',     hint:'Obténla en <strong>console.groq.com</strong> · tiene capa gratuita' }
+};
+
+function onProveedorChange() {
+  const prov = document.getElementById('agente-proveedor').value;
+  const sel = document.getElementById('agente-modelo');
+  const modelos = MODELOS_PROVEEDOR[prov] || [];
+  sel.innerHTML = modelos.map(m => `<option value="${m.val}">${m.label}</option>`).join('');
+  const info = APIKEY_INFO[prov];
+  if (info) {
+    document.getElementById('agente-apikey-provider-label').textContent = info.label;
+    document.getElementById('agente-apikey').placeholder = info.ph;
+    document.getElementById('agente-apikey-hint').innerHTML = info.hint;
+  }
+}
+
+// ── Filtro de chats ──────────────────────────────────────────────────────────
+function onFiltroChange() {
   const filtro = document.querySelector('input[name="agente-filtro"]:checked')?.value || 'todos';
-  fetch('/api/agente/config', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ filtro }) });
+  document.getElementById('filtro-grupos-panel').style.display  = filtro === 'grupos'   ? '' : 'none';
+  document.getElementById('filtro-privados-panel').style.display = filtro === 'privados' ? '' : 'none';
+}
+
+function populateFiltroLista(tipo, items, selected) {
+  const cont = document.getElementById(`filtro-${tipo}-list`);
+  if (!items.length) {
+    cont.innerHTML = `<p style="color:var(--text2);font-size:.82rem;padding:8px 4px">No hay ${tipo === 'grupos' ? 'grupos' : 'contactos'} disponibles — conecta WhatsApp primero.</p>`;
+    return;
+  }
+  cont.innerHTML = items.map(item => `
+    <label class="filtro-chat-item">
+      <input type="checkbox" value="${escHTML(item.chatId)}" ${selected.has(item.chatId) ? 'checked' : ''}>
+      <span>${escHTML(item.nombre || item.chatId)}</span>
+    </label>`).join('');
+}
+
+function filtrarFiltroLista(tipo, q) {
+  const cont = document.getElementById(`filtro-${tipo}-list`);
+  const ql = q.toLowerCase();
+  cont.querySelectorAll('.filtro-chat-item').forEach(item => {
+    const nombre = item.querySelector('span')?.textContent?.toLowerCase() || '';
+    item.style.display = !q || nombre.includes(ql) ? '' : 'none';
+  });
+}
+
+function getFiltroSeleccionados(tipo) {
+  const cont = document.getElementById(`filtro-${tipo}-list`);
+  return [...cont.querySelectorAll('input[type="checkbox"]:checked')].map(c => c.value);
 }
 
 async function guardarConfigAgente() {
   const apiKey = document.getElementById('agente-apikey').value.trim();
   const modelo = document.getElementById('agente-modelo').value;
+  const proveedor = document.getElementById('agente-proveedor').value;
   const instruccionesExtra = document.getElementById('agente-instrucciones').value;
   const filtro = document.querySelector('input[name="agente-filtro"]:checked')?.value || 'todos';
   const activo = document.getElementById('agente-activo').checked;
+  let chatsFiltros = [];
+  if (filtro === 'grupos')   chatsFiltros = getFiltroSeleccionados('grupos');
+  if (filtro === 'privados') chatsFiltros = getFiltroSeleccionados('privados');
   const res = await fetch('/api/agente/config', {
     method:'PUT', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ activo, apiKey, modelo, instruccionesExtra, filtro })
+    body: JSON.stringify({ activo, apiKey, modelo, proveedor, instruccionesExtra, filtro, chatsFiltros })
   });
   const data = await res.json();
   if (data.ok) { actualizarPillAgente(activo); toast(true, 'Configuración del agente guardada'); }

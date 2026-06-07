@@ -238,10 +238,11 @@ app.put('/api/agente/config', (req, res) => {
   try {
     const config = leerConfig();
     if (!config.agente) config.agente = {};
-    const { activo, apiKey, modelo, instruccionesExtra, filtro, chatsFiltros } = req.body;
+    const { activo, apiKey, modelo, proveedor, instruccionesExtra, filtro, chatsFiltros } = req.body;
     if (activo !== undefined) config.agente.activo = activo;
     if (apiKey !== undefined) config.agente.apiKey = apiKey;
     if (modelo !== undefined) config.agente.modelo = modelo;
+    if (proveedor !== undefined) config.agente.proveedor = proveedor;
     if (instruccionesExtra !== undefined) config.agente.instruccionesExtra = instruccionesExtra;
     if (filtro !== undefined) config.agente.filtro = filtro;
     if (chatsFiltros !== undefined) config.agente.chatsFiltros = chatsFiltros;

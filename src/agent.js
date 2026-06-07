@@ -3,7 +3,7 @@ const fs = require('fs');
 
 const KNOWLEDGE_DIR = path.resolve('knowledge');
 const CONFIG_PATH = path.resolve(__dirname, '../config.json');
-const conversationHistory = new Map(); // chatId → [{role, content}]
+const conversationHistory = new Map();
 const MAX_HISTORY = 16;
 
 function leerConfig() {
@@ -12,13 +12,10 @@ function leerConfig() {
 
 async function cargarTextoDocumento(filepath) {
   const ext = path.extname(filepath).toLowerCase();
-  if (['.txt', '.md'].includes(ext)) {
-    return fs.readFileSync(filepath, 'utf8');
-  }
+  if (['.txt', '.md'].includes(ext)) return fs.readFileSync(filepath, 'utf8');
   if (ext === '.pdf') {
     try {
-      const pdfParse = require('pdf-parse');
-      const data = await pdfParse(fs.readFileSync(filepath));
+      const data = await require('pdf-parse')(fs.readFileSync(filepath));
       return data.text;
     } catch (_) { return ''; }
   }
@@ -28,8 +25,7 @@ async function cargarTextoDocumento(filepath) {
 async function buildSystemPrompt(agente) {
   let docs = '';
   if (fs.existsSync(KNOWLEDGE_DIR)) {
-    const files = fs.readdirSync(KNOWLEDGE_DIR).filter(f => !f.startsWith('.'));
-    for (const f of files) {
+    for (const f of fs.readdirSync(KNOWLEDGE_DIR).filter(f => !f.startsWith('.'))) {
       const texto = await cargarTextoDocumento(path.join(KNOWLEDGE_DIR, f));
       if (texto.trim()) docs += `\n\n=== ${f} ===\n${texto.trim()}`;
     }
@@ -38,11 +34,50 @@ async function buildSystemPrompt(agente) {
     'Eres un coordinador profesional de servicio de transporte de carga.',
     'Atiendes consultas de clientes y socios de manera profesional, clara y concisa.',
     'Eres amable, eficiente y orientado a resolver las necesidades del cliente.',
-    'Cuando no tienes información suficiente para responder, lo indicas amablemente.',
+    'Cuando no tienes información suficiente, lo indicas amablemente.',
     'Responde siempre en el mismo idioma del usuario.',
     docs ? `\n\nBase de conocimiento de la empresa:${docs}` : '',
     agente.instruccionesExtra ? `\nInstrucciones adicionales:\n${agente.instruccionesExtra}` : ''
   ].filter(Boolean).join('\n');
+}
+
+async function llamarAnthropic(agente, systemPrompt, history) {
+  const Anthropic = require('@anthropic-ai/sdk');
+  const client = new Anthropic({ apiKey: agente.apiKey });
+  const response = await client.messages.create({
+    model: agente.modelo || 'claude-haiku-4-5-20251001',
+    max_tokens: 1024,
+    system: systemPrompt,
+    messages: [...history]
+  });
+  return response.content[0].text;
+}
+
+async function llamarGemini(agente, systemPrompt, history) {
+  const { GoogleGenerativeAI } = require('@google/generative-ai');
+  const genAI = new GoogleGenerativeAI(agente.apiKey);
+  const model = genAI.getGenerativeModel({
+    model: agente.modelo || 'gemini-2.0-flash',
+    systemInstruction: systemPrompt
+  });
+  const geminiHistory = history.slice(0, -1).map(m => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }]
+  }));
+  const chat = model.startChat({ history: geminiHistory });
+  const result = await chat.sendMessage(history[history.length - 1].content);
+  return result.response.text();
+}
+
+async function llamarGroq(agente, systemPrompt, history) {
+  const Groq = require('groq-sdk');
+  const groq = new Groq({ apiKey: agente.apiKey });
+  const response = await groq.chat.completions.create({
+    model: agente.modelo || 'llama-3.1-8b-instant',
+    max_tokens: 1024,
+    messages: [{ role: 'system', content: systemPrompt }, ...history]
+  });
+  return response.choices[0].message.content;
 }
 
 async function procesarMensaje(chatId, texto) {
@@ -52,12 +87,17 @@ async function procesarMensaje(chatId, texto) {
 
   const esGrupo = chatId.endsWith('@g.us');
   const esPrivado = chatId.endsWith('@s.whatsapp.net');
+  const filtros = agente.chatsFiltros || [];
 
-  if (agente.filtro === 'grupos' && !esGrupo) return null;
-  if (agente.filtro === 'privados' && !esPrivado) return null;
-  if (agente.filtro === 'especificos' && !(agente.chatsFiltros || []).includes(chatId)) return null;
+  if (agente.filtro === 'grupos') {
+    if (!esGrupo) return null;
+    if (filtros.length > 0 && !filtros.includes(chatId)) return null;
+  } else if (agente.filtro === 'privados') {
+    if (!esPrivado) return null;
+    if (filtros.length > 0 && !filtros.includes(chatId)) return null;
+  }
 
-  // Respuestas rápidas tienen prioridad
+  // Respuestas rápidas tienen prioridad (sin costo de API)
   const textoLower = texto.toLowerCase().trim();
   for (const rr of agente.respuestasRapidas || []) {
     if (!rr.activa) continue;
@@ -69,28 +109,20 @@ async function procesarMensaje(chatId, texto) {
 
   if (!agente.apiKey) return null;
 
-  let Anthropic;
-  try { Anthropic = require('@anthropic-ai/sdk'); }
-  catch (_) { console.error('[Agente] @anthropic-ai/sdk no instalado'); return null; }
-
-  const client = new Anthropic({ apiKey: agente.apiKey });
   const systemPrompt = await buildSystemPrompt(agente);
-
   if (!conversationHistory.has(chatId)) conversationHistory.set(chatId, []);
   const history = conversationHistory.get(chatId);
   history.push({ role: 'user', content: texto });
   if (history.length > MAX_HISTORY) history.splice(0, history.length - MAX_HISTORY);
 
   try {
-    const response = await client.messages.create({
-      model: agente.modelo || 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages: [...history]
-    });
-    const respuesta = response.content[0].text;
+    const proveedor = agente.proveedor || 'anthropic';
+    let respuesta;
+    if (proveedor === 'gemini') respuesta = await llamarGemini(agente, systemPrompt, history);
+    else if (proveedor === 'groq') respuesta = await llamarGroq(agente, systemPrompt, history);
+    else respuesta = await llamarAnthropic(agente, systemPrompt, history);
     history.push({ role: 'assistant', content: respuesta });
-    console.log(`[Agente] Respondido → ${chatId}`);
+    console.log(`[Agente] Respondido (${proveedor}) → ${chatId}`);
     return respuesta;
   } catch (err) {
     console.error('[Agente] Error API:', err.message);

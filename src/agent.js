@@ -87,18 +87,32 @@ async function procesarMensaje(chatId, texto) {
 
   const esGrupo = chatId.endsWith('@g.us');
   const esPrivado = chatId.endsWith('@s.whatsapp.net');
+  const filtro = agente.filtro || 'todos';
   const filtros = agente.chatsFiltros || [];
 
-  if (agente.filtro === 'grupos') {
-    if (!esGrupo) return null;
-    if (filtros.length > 0 && !filtros.includes(chatId)) return null;
-  } else if (agente.filtro === 'privados') {
-    if (!esPrivado) return null;
-    if (filtros.length > 0 && !filtros.includes(chatId)) return null;
-  } else if (agente.filtro === 'ambos') {
-    if (!esGrupo && !esPrivado) return null;
-    if (filtros.length > 0 && !filtros.includes(chatId)) return null;
+  console.log(`[Agente] Mensaje de ${chatId} | filtro=${filtro} | esGrupo=${esGrupo} | esPrivado=${esPrivado} | chatsFiltros=[${filtros.join(', ')}]`);
+
+  if (filtro === 'grupos') {
+    if (!esGrupo) { console.log(`[Agente] Bloqueado: filtro=grupos pero el mensaje es de un chat privado (${chatId})`); return null; }
+    if (filtros.length > 0 && !filtros.includes(chatId)) {
+      console.log(`[Agente] Bloqueado: grupo ${chatId} no está en la lista seleccionada: [${filtros.join(', ')}]`);
+      return null;
+    }
+  } else if (filtro === 'privados') {
+    if (!esPrivado) { console.log(`[Agente] Bloqueado: filtro=privados pero el mensaje es de un grupo (${chatId})`); return null; }
+    if (filtros.length > 0 && !filtros.includes(chatId)) {
+      console.log(`[Agente] Bloqueado: contacto ${chatId} no está en la lista seleccionada: [${filtros.join(', ')}]`);
+      return null;
+    }
+  } else if (filtro === 'ambos') {
+    if (!esGrupo && !esPrivado) { console.log(`[Agente] Bloqueado: tipo de chat desconocido (${chatId})`); return null; }
+    if (filtros.length > 0 && !filtros.includes(chatId)) {
+      console.log(`[Agente] Bloqueado: chat ${chatId} no está en la lista combinada: [${filtros.join(', ')}]`);
+      return null;
+    }
   }
+
+  console.log(`[Agente] Filtro OK → procesando mensaje de ${chatId}`);
 
   // Respuestas rápidas tienen prioridad (sin costo de API)
   const textoLower = texto.toLowerCase().trim();
@@ -112,7 +126,10 @@ async function procesarMensaje(chatId, texto) {
 
   const proveedor = agente.proveedor || 'anthropic';
   const apiKey = agente.apiKeys?.[proveedor] || agente.apiKey || '';
-  if (!apiKey) return null;
+  if (!apiKey) {
+    console.log(`[Agente] Sin API key para proveedor "${proveedor}" — configura la API key en Ajustes del Agente`);
+    return null;
+  }
 
   const agenteConKey = { ...agente, apiKey };
   const systemPrompt = await buildSystemPrompt(agente);

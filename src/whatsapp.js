@@ -46,6 +46,24 @@ function esContactoPrivado(id) {
   return id.endsWith('@s.whatsapp.net') || id.endsWith('@lid');
 }
 
+// Intenta mapear un @lid al @s.whatsapp.net equivalente buscando por nombre en caché
+function resolverLid(chatId) {
+  if (!chatId.endsWith('@lid')) return chatId;
+  // Primero intenta el mapa explícito (si Baileys proveyó c.lid)
+  if (lidToJid.has(chatId)) return lidToJid.get(chatId);
+  // Fallback: busca un @s.whatsapp.net con el mismo nombre en el caché
+  const nombre = contactosCache.get(chatId);
+  if (nombre) {
+    for (const [id, n] of contactosCache) {
+      if (id.endsWith('@s.whatsapp.net') && n === nombre) {
+        lidToJid.set(chatId, id); // cachear para próximas veces
+        return id;
+      }
+    }
+  }
+  return chatId;
+}
+
 function procesarContacto(c) {
   if (!c.id || !esContactoPrivado(c.id)) return;
   const nombre = c.name || c.notify || c.verifiedName || c.id.replace(/@s\.whatsapp\.net$|@lid$/, '');
@@ -184,7 +202,7 @@ async function inicializar() {
         msg.message.videoMessage?.caption || '';
       if (!texto.trim()) continue;
       // Normalizar @lid → @s.whatsapp.net para que coincida con el filtro guardado
-      const chatIdFiltro = lidToJid.get(chatId) || chatId;
+      const chatIdFiltro = resolverLid(chatId);
       try {
         const respuesta = await procesarMensaje(chatIdFiltro, texto);
         if (respuesta) await socket.sendMessage(chatId, { text: respuesta });

@@ -483,8 +483,11 @@
     .chat-send-btn { background:linear-gradient(135deg,#00c896,#00a876); border:none; border-radius:8px; color:#fff; padding:8px 11px; cursor:pointer; transition:var(--trans); display:flex; align-items:center; flex-shrink:0; }
     .chat-send-btn:hover { transform:translateY(-1px); box-shadow:0 3px 12px rgba(0,200,150,.4); }
     .chat-send-btn:disabled { opacity:.5; cursor:not-allowed; transform:none; }
+    .chat-resize-handle { width:5px; background:transparent; cursor:col-resize; flex-shrink:0; transition:background .15s; position:relative; }
+    .chat-resize-handle::after { content:''; position:absolute; inset:0 -3px; }
+    .chat-resize-handle:hover, .chat-resize-handle.dragging { background:var(--accent); }
     @media(max-width:1100px){ .chat-aside { width:260px; } }
-    @media(max-width:860px){ .chat-aside { display:none; } }
+    @media(max-width:860px){ .chat-aside { display:none; } .chat-resize-handle { display:none; } }
 
   /* ── PRESPLASH ───────────────────────────────────────── */
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap');
@@ -653,6 +656,8 @@
       </div>
     </div>
   </div>
+
+  <div id="chat-resize-handle" class="chat-resize-handle"></div>
 
   <!-- Main -->
   <main>
@@ -3042,6 +3047,13 @@ async function eliminarDocumento(nombre) {
 
 function escHTML(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+// ── Variables Chat en Vivo (declaradas aquí para evitar TDZ) ──
+let _chatFiltro = 'todos';
+let _chatActual = null;
+let _chatsData = [];
+let _sseConn = null;
+let _gruposConfig = [];
+
 cargarEstado();
 setInterval(cargarEstado, 15000);
 initChatEnVivo();
@@ -3230,11 +3242,6 @@ function _beginIntroAnimation(scr, _au) {
 }
 
   // ═══════════════ CHAT EN VIVO ═══════════════
-  let _chatFiltro = 'todos';
-  let _chatActual = null;
-  let _chatsData = [];
-  let _sseConn = null;
-  let _gruposConfig = [];
 
   function initChatEnVivo() {
     if (_sseConn && _sseConn.readyState < 2) return; // ya conectado
@@ -3429,6 +3436,34 @@ function _beginIntroAnimation(scr, _au) {
   function escHtml(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
+
+  // ── Resize handle del chat aside ──────────────────────────
+  (function() {
+    const handle = document.getElementById('chat-resize-handle');
+    const aside  = document.getElementById('chat-aside');
+    if (!handle || !aside) return;
+    let dragging = false, startX = 0, startW = 0;
+    handle.addEventListener('mousedown', e => {
+      dragging = true;
+      startX = e.clientX;
+      startW = aside.offsetWidth;
+      handle.classList.add('dragging');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    });
+    document.addEventListener('mousemove', e => {
+      if (!dragging) return;
+      const w = Math.min(Math.max(startW + (e.clientX - startX), 200), 520);
+      aside.style.width = w + 'px';
+    });
+    document.addEventListener('mouseup', () => {
+      if (!dragging) return;
+      dragging = false;
+      handle.classList.remove('dragging');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    });
+  })();
 </script>
 </body>
 </html>

@@ -359,11 +359,15 @@ app.get('/api/chat/mensajes/:chatId', (req, res) => {
   res.json(msgs);
 });
 
-app.post('/api/chat/enviar', async (req, res) => {
-  const { chatId, texto } = req.body;
-  if (!chatId || !texto) return res.status(400).json({ error: 'chatId y texto son requeridos' });
+const chatUpload = multer({ dest: 'media/' });
+app.post('/api/chat/enviar', chatUpload.single('archivo'), async (req, res) => {
+  const chatId = req.body.chatId;
+  const texto = req.body.texto || '';
+  if (!chatId) return res.status(400).json({ error: 'chatId es requerido' });
+  if (!texto && !req.file) return res.status(400).json({ error: 'texto o archivo son requeridos' });
   try {
-    await enviarMensaje(chatId, texto, []);
+    const archivos = req.file ? procesarArchivos([req.file]) : [];
+    await enviarMensaje(chatId, texto, archivos);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

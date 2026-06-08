@@ -480,12 +480,24 @@
     .msg-bubble.recibido { align-self:flex-start; background:var(--surface2); border-bottom-left-radius:3px; }
     .msg-autor { font-size:.67rem; font-weight:700; color:var(--accent2); margin-bottom:2px; }
     .msg-ts { font-size:.64rem; color:var(--text2); margin-top:3px; text-align:right; }
-    .chat-input-row { padding:10px; border-top:1px solid var(--border); display:flex; gap:8px; align-items:flex-end; flex-shrink:0; }
+    .chat-attachment-preview { display:none; align-items:center; gap:8px; padding:7px 10px; border-top:1px solid var(--border); background:rgba(0,0,0,.18); flex-shrink:0; }
+    .chat-attachment-preview.show { display:flex; }
+    .chat-attach-visual { width:40px; height:40px; flex-shrink:0; border-radius:6px; overflow:hidden; background:rgba(0,153,255,.12); display:flex; align-items:center; justify-content:center; color:var(--accent2); font-size:1.3rem; }
+    .chat-attach-visual img { width:100%; height:100%; object-fit:cover; }
+    .chat-attach-info { flex:1; min-width:0; }
+    .chat-attach-fname { font-size:.76rem; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text); }
+    .chat-attach-fsize { font-size:.68rem; color:var(--text2); margin-top:1px; }
+    .chat-attach-rm { background:none; border:none; cursor:pointer; color:var(--text2); padding:4px; border-radius:4px; display:flex; align-items:center; transition:var(--trans); flex-shrink:0; }
+    .chat-attach-rm:hover { color:var(--danger); }
+    .chat-input-row { padding:10px; border-top:1px solid var(--border); display:flex; gap:6px; align-items:flex-end; flex-shrink:0; }
     .chat-input { flex:1; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:8px 11px; color:var(--text); font-size:.85rem; font-family:inherit; resize:none; max-height:100px; min-height:36px; }
     .chat-input:focus { outline:none; border-color:var(--accent); }
+    .chat-attach-btn { background:none; border:1px solid var(--border); border-radius:8px; cursor:pointer; color:var(--text2); padding:5px 7px; transition:var(--trans); flex-shrink:0; display:flex; align-items:center; align-self:flex-end; margin-bottom:1px; }
+    .chat-attach-btn:hover { border-color:var(--accent2); color:var(--accent2); background:rgba(0,153,255,.08); }
     .chat-send-btn { background:linear-gradient(135deg,#00c896,#00a876); border:none; border-radius:8px; color:#fff; padding:8px 11px; cursor:pointer; transition:var(--trans); display:flex; align-items:center; flex-shrink:0; }
     .chat-send-btn:hover { transform:translateY(-1px); box-shadow:0 3px 12px rgba(0,200,150,.4); }
     .chat-send-btn:disabled { opacity:.5; cursor:not-allowed; transform:none; }
+    .chat-audio-player { width:100%; max-width:210px; height:32px; border-radius:20px; margin-bottom:4px; accent-color:var(--accent); display:block; }
     .chat-resize-handle { width:5px; background:transparent; cursor:col-resize; flex-shrink:0; transition:background .15s; position:relative; }
     .chat-resize-handle::after { content:''; position:absolute; inset:0 -3px; }
     .chat-resize-handle:hover, .chat-resize-handle.dragging { background:var(--accent); }
@@ -649,7 +661,24 @@
         </button>
       </div>
       <div class="chat-mensajes" id="chat-mensajes-area"></div>
+      <!-- Preview del archivo adjunto seleccionado -->
+      <div id="chat-attachment-preview" class="chat-attachment-preview">
+        <div id="chat-attach-visual" class="chat-attach-visual"></div>
+        <div class="chat-attach-info">
+          <div id="chat-attach-fname" class="chat-attach-fname">—</div>
+          <div id="chat-attach-fsize" class="chat-attach-fsize">—</div>
+        </div>
+        <button class="chat-attach-rm" onclick="quitarAdjunto()" title="Quitar adjunto">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
       <div class="chat-input-row">
+        <input type="file" id="chat-file-input" style="display:none"
+          accept="image/*,video/*,audio/*,.pdf,.xlsx,.xls,.docx,.doc,.pptx,.ppt,.zip,.rar,.txt,.csv"
+          onchange="onChatFileChange(this)">
+        <button type="button" class="chat-attach-btn" onclick="document.getElementById('chat-file-input').click()" title="Adjuntar archivo">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+        </button>
         <button type="button" class="emoji-trigger" onclick="abrirEmoji('chat-input-texto',this)" title="Insertar emoji" style="flex-shrink:0;padding:5px 8px;align-self:flex-end;margin-bottom:1px">😊</button>
         <textarea class="chat-input" id="chat-input-texto" placeholder="Mensaje (Enter envía)..." rows="1"
           onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviarMensajeChat()}"
@@ -3399,15 +3428,19 @@ function _beginIntroAnimation(scr, _au) {
 
   function _renderContenido(msg) {
     const tipo = msg.mediaTipo;
-    const path = msg.mediaPath;
+    const mpath = msg.mediaPath;
     let html = '';
-    if (tipo === 'imagen' && path) {
-      html += `<a href="${path}" target="_blank" style="display:block;margin-bottom:4px"><img src="${path}" style="max-width:100%;border-radius:8px;display:block;cursor:zoom-in" loading="lazy" onerror="this.style.display='none'"></a>`;
-    } else if (tipo === 'video' && path) {
-      html += `<video controls style="max-width:100%;border-radius:8px;display:block;margin-bottom:4px"><source src="${path}"></video>`;
-    } else if (tipo === 'documento' && path) {
-      const fname = escHtml(msg.docNombre || path.split('/').pop());
-      html += `<a href="${path}" download style="display:inline-flex;align-items:center;gap:6px;color:var(--accent2);text-decoration:none;background:rgba(0,153,255,.1);border:1px solid rgba(0,153,255,.2);border-radius:8px;padding:6px 10px;font-size:.78rem;margin-bottom:4px;max-width:100%;overflow:hidden">
+    if (tipo === 'imagen' && mpath) {
+      html += `<a href="${mpath}" target="_blank" style="display:block;margin-bottom:4px"><img src="${mpath}" style="max-width:100%;border-radius:8px;display:block;cursor:zoom-in" loading="lazy" onerror="this.style.display='none'"></a>`;
+    } else if (tipo === 'video' && mpath) {
+      html += `<video controls style="max-width:100%;border-radius:8px;display:block;margin-bottom:4px"><source src="${escHtml(mpath)}"></video>`;
+    } else if (tipo === 'audio' && mpath) {
+      html += `<audio controls class="chat-audio-player"><source src="${escHtml(mpath)}"></audio>`;
+    } else if (tipo === 'audio' && !mpath) {
+      html += `<span style="color:var(--text2);font-size:.78rem;font-style:italic">🎵 Mensaje de audio</span>`;
+    } else if (tipo === 'documento' && mpath) {
+      const fname = escHtml(msg.docNombre || mpath.split('/').pop());
+      html += `<a href="${mpath}" download style="display:inline-flex;align-items:center;gap:6px;color:var(--accent2);text-decoration:none;background:rgba(0,153,255,.1);border:1px solid rgba(0,153,255,.2);border-radius:8px;padding:6px 10px;font-size:.78rem;margin-bottom:4px;max-width:100%;overflow:hidden">
         <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
         <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${fname}</span>
         <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="flex-shrink:0"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -3415,7 +3448,9 @@ function _beginIntroAnimation(scr, _au) {
     } else if (!tipo && !msg.texto) {
       html += `<span style="color:var(--text2);font-size:.78rem;font-style:italic">[Media]</span>`;
     }
-    if (msg.texto) html += `<span>${_linkify(escHtml(msg.texto))}</span>`;
+    // Mostrar texto (ignorar placeholders legacy)
+    const textoLimpio = msg.texto && msg.texto !== '[Audio]' && msg.texto !== '[Sticker]' ? msg.texto : null;
+    if (textoLimpio) html += `<span>${_linkify(escHtml(textoLimpio))}</span>`;
     return html || `<span style="color:var(--text2);font-size:.78rem;font-style:italic">[Media]</span>`;
   }
 
@@ -3442,18 +3477,21 @@ function _beginIntroAnimation(scr, _au) {
     if (!_chatActual) return;
     const input = document.getElementById('chat-input-texto');
     const texto = input.value.trim();
-    if (!texto) return;
+    const fileInput = document.getElementById('chat-file-input');
+    const file = fileInput?.files[0];
+    if (!texto && !file) return;
     const btn = document.getElementById('chat-send-btn');
     btn.disabled = true;
     try {
-      const r = await fetch('/api/chat/enviar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId: _chatActual, texto })
-      });
+      const fd = new FormData();
+      fd.append('chatId', _chatActual);
+      if (texto) fd.append('texto', texto);
+      if (file) fd.append('archivo', file);
+      const r = await fetch('/api/chat/enviar', { method: 'POST', body: fd });
       if (r.ok) {
         input.value = '';
         input.style.height = '';
+        quitarAdjunto();
       } else {
         const e = await r.json();
         toast('Error: ' + (e.error || 'No se pudo enviar'), 'err');
@@ -3463,6 +3501,34 @@ function _beginIntroAnimation(scr, _au) {
     }
     btn.disabled = false;
     input.focus();
+  }
+
+  function onChatFileChange(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const visual = document.getElementById('chat-attach-visual');
+    document.getElementById('chat-attach-fname').textContent = file.name;
+    document.getElementById('chat-attach-fsize').textContent = _fmtSize(file.size);
+    if (file.type.startsWith('image/')) {
+      const url = URL.createObjectURL(file);
+      visual.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover">`;
+    } else {
+      const ico = file.type.startsWith('video/') ? '🎥' : file.type.startsWith('audio/') ? '🎵' : '📄';
+      visual.innerHTML = `<span style="font-size:1.3rem">${ico}</span>`;
+    }
+    document.getElementById('chat-attachment-preview').classList.add('show');
+  }
+
+  function quitarAdjunto() {
+    const fi = document.getElementById('chat-file-input');
+    if (fi) fi.value = '';
+    document.getElementById('chat-attachment-preview')?.classList.remove('show');
+  }
+
+  function _fmtSize(b) {
+    if (b < 1024) return b + ' B';
+    if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+    return (b / 1048576).toFixed(1) + ' MB';
   }
 
   function autoResizeChat(el) {

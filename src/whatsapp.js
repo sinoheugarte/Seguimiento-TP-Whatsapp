@@ -136,30 +136,32 @@ async function guardarMensaje(msg) {
   // Texto visible del mensaje
   const texto = m.conversation || m.extendedTextMessage?.text || m.imageMessage?.caption ||
     m.videoMessage?.caption || m.documentMessage?.caption ||
-    (m.stickerMessage ? '[Sticker]' : m.audioMessage ? '[Audio]' : '');
+    (m.stickerMessage ? '[Sticker]' : '');
 
   // Tipo de media y descarga
   let mediaTipo = null;
   let mediaPath = null;
   const tieneImagen = !!(m.imageMessage || m.stickerMessage);
   const tieneVideo  = !!m.videoMessage;
+  const tieneAudio  = !!m.audioMessage;
   const tieneDoc    = !!m.documentMessage;
 
-  if (tieneImagen || tieneVideo || tieneDoc) {
+  if (tieneImagen || tieneVideo || tieneDoc || tieneAudio) {
     try {
       if (!fs.existsSync(CHAT_MEDIA_DIR)) fs.mkdirSync(CHAT_MEDIA_DIR, { recursive: true });
       const buf = await downloadMediaMessage(msg, 'buffer', {}, { reuploadRequest: socket?.updateMediaMessage });
       let ext = '.bin';
       if (tieneImagen)     ext = m.stickerMessage ? '.webp' : '.jpg';
       else if (tieneVideo) ext = '.mp4';
+      else if (tieneAudio) ext = '.ogg';
       else if (tieneDoc)   ext = path.extname(m.documentMessage.fileName || '') || '.bin';
       const fname = `${msg.key.id || Date.now()}${ext}`.replace(/[^\w.\-]/g, '_');
       fs.writeFileSync(path.join(CHAT_MEDIA_DIR, fname), buf);
       mediaPath = `/chat-media/${fname}`;
-      mediaTipo = tieneImagen ? 'imagen' : tieneVideo ? 'video' : 'documento';
+      mediaTipo = tieneImagen ? 'imagen' : tieneVideo ? 'video' : tieneAudio ? 'audio' : 'documento';
     } catch (e) {
       log(`[ChatMedia] no se pudo descargar (${e.message?.slice(0,60)})`);
-      mediaTipo = tieneImagen ? 'imagen' : tieneVideo ? 'video' : 'documento';
+      mediaTipo = tieneImagen ? 'imagen' : tieneVideo ? 'video' : tieneAudio ? 'audio' : 'documento';
     }
   }
 
@@ -188,7 +190,7 @@ async function guardarMensaje(msg) {
     lista.push(msgObj);
     if (lista.length > MAX_MSGS_POR_CHAT) lista.shift();
   }
-  const ultimoTexto = texto || (mediaTipo === 'imagen' ? '📷 Imagen' : mediaTipo === 'video' ? '🎥 Video' : mediaTipo === 'documento' ? `📄 ${m.documentMessage?.fileName || 'Documento'}` : '[Media]');
+  const ultimoTexto = texto || (mediaTipo === 'imagen' ? '📷 Imagen' : mediaTipo === 'video' ? '🎥 Video' : mediaTipo === 'audio' ? '🎵 Audio' : mediaTipo === 'documento' ? `📄 ${m.documentMessage?.fileName || 'Documento'}` : '[Media]');
   chatsRecientes.set(chatId, { chatId, nombre, ultimo: ultimoTexto, ts, esGrupo: chatId.endsWith('@g.us') });
   if (_sseBroadcast) _sseBroadcast({ tipo: 'mensaje', ...msgObj, chatNombre: nombre });
   guardarMensajesCache();
@@ -382,6 +384,12 @@ function getMime(nombre) {
 function esImagen(nombre) {
   return ['jpg','jpeg','png','gif','webp'].includes(path.extname(nombre).slice(1).toLowerCase());
 }
+function esVideo(nombre) {
+  return ['mp4','mov','avi','3gp','mkv','webm'].includes(path.extname(nombre).slice(1).toLowerCase());
+}
+function esAudio(nombre) {
+  return ['mp3','ogg','aac','wav','opus','m4a','flac'].includes(path.extname(nombre).slice(1).toLowerCase());
+}
 
 async function enviarMensaje(chatId, texto, archivos = []) {
   if (!listo) throw new Error('WhatsApp no esta conectado');
@@ -401,6 +409,10 @@ async function enviarMensaje(chatId, texto, archivos = []) {
 
     if (esImagen(nombreArchivo)) {
       await socket.sendMessage(chatId, { image: buffer, caption, mimetype: mime });
+    } else if (esVideo(nombreArchivo)) {
+      await socket.sendMessage(chatId, { video: buffer, caption, mimetype: mime });
+    } else if (esAudio(nombreArchivo)) {
+      await socket.sendMessage(chatId, { audio: buffer, mimetype: mime, ptt: false });
     } else {
       await socket.sendMessage(chatId, {
         document: buffer,

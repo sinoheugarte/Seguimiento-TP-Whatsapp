@@ -445,8 +445,8 @@
     .chat-search-box { padding:10px 12px; border-bottom:1px solid var(--border); flex-shrink:0; }
     .chat-search-box input { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:7px 11px; color:var(--text); font-size:.83rem; font-family:inherit; }
     .chat-search-box input:focus { outline:none; border-color:var(--accent); }
-    .chat-filter-bar { display:flex; gap:3px; padding:7px 10px; border-bottom:1px solid var(--border); flex-shrink:0; }
-    .chat-filter-btn { flex:1; padding:4px 6px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--text2); font-size:.72rem; font-weight:600; cursor:pointer; transition:var(--trans); font-family:inherit; }
+    .chat-filter-bar { display:flex; gap:2px; padding:6px 8px; border-bottom:1px solid var(--border); flex-shrink:0; }
+    .chat-filter-btn { flex:1; padding:4px 4px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--text2); font-size:.68rem; font-weight:600; cursor:pointer; transition:var(--trans); font-family:inherit; }
     .chat-filter-btn:hover { color:var(--text); }
     .chat-filter-btn.active { background:rgba(0,200,150,.15); color:var(--accent); border-color:rgba(0,200,150,.3); }
     .chat-aside-list-view { flex:1; display:flex; flex-direction:column; overflow:hidden; }
@@ -638,6 +638,7 @@
         <button class="chat-filter-btn active" id="cfb-todos" onclick="setChatFiltro('todos',this)">Todos</button>
         <button class="chat-filter-btn" id="cfb-grupos" onclick="setChatFiltro('grupos',this)">Grupos</button>
         <button class="chat-filter-btn" id="cfb-privados" onclick="setChatFiltro('privados',this)">Priv.</button>
+        <button class="chat-filter-btn" id="cfb-novedades" onclick="setChatFiltro('novedades',this)">Nov.</button>
         <button class="chat-filter-btn" id="cfb-config" onclick="setChatFiltro('config',this)">Config.</button>
       </div>
       <div id="chat-lista" class="chat-lista">
@@ -3337,11 +3338,16 @@ function _beginIntroAnimation(scr, _au) {
 
   function filtrarChats() { renderChatsLista(); }
 
+  function _esBroadcast(chatId) {
+    return chatId.endsWith('@broadcast') || chatId.endsWith('@newsletter');
+  }
+
   function renderChatsLista() {
     const buscar = (document.getElementById('chat-buscar')?.value || '').toLowerCase();
     let lista = [..._chatsData];
-    if (_chatFiltro === 'grupos') lista = lista.filter(c => c.esGrupo);
-    else if (_chatFiltro === 'privados') lista = lista.filter(c => !c.esGrupo);
+    if (_chatFiltro === 'grupos')     lista = lista.filter(c => c.esGrupo && !_esBroadcast(c.chatId));
+    else if (_chatFiltro === 'privados')  lista = lista.filter(c => !c.esGrupo && !_esBroadcast(c.chatId));
+    else if (_chatFiltro === 'novedades') lista = lista.filter(c => _esBroadcast(c.chatId));
     else if (_chatFiltro === 'config') {
       const ids = (_gruposConfig || []).map(g => g.chatId);
       lista = lista.filter(c => ids.includes(c.chatId));

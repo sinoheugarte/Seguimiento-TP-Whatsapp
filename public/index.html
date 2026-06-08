@@ -429,7 +429,7 @@
 
     /* ── Chat en Vivo — Sidebar persistente ── */
     .chat-aside {
-      width: 300px;
+      width: 420px;
       flex-shrink: 0;
       background: var(--surface);
       border-right: 1px solid var(--border);
@@ -470,38 +470,39 @@
     .chat-item-ultimo { font-size:.73rem; color:var(--text2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
     .chat-item-ts { font-size:.67rem; color:var(--text2); flex-shrink:0; }
     .chat-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; gap:10px; color:var(--text2); font-size:.8rem; text-align:center; padding:20px; }
-    .chat-mensajes { flex:1; overflow-y:auto; padding:12px 10px; display:flex; flex-direction:column; gap:5px; scrollbar-width:thin; scrollbar-color:#2a3a4a transparent; min-height:0; }
+    .chat-mensajes { flex:1; overflow-y:auto; padding:14px 14px; display:flex; flex-direction:column; gap:6px; scrollbar-width:thin; scrollbar-color:#2a3a4a transparent; min-height:0; }
     /* Spacer: empuja mensajes al fondo cuando hay pocos; se encoge a 0 con muchos para que el scroll funcione */
     .chat-mensajes::before { content:''; flex:1; min-height:0; display:block; }
     .chat-mensajes::-webkit-scrollbar { width:4px; }
     .chat-mensajes::-webkit-scrollbar-thumb { background:#2a3a4a; border-radius:4px; }
-    .msg-bubble { max-width:85%; padding:7px 11px; border-radius:12px; font-size:.82rem; line-height:1.5; word-break:break-word; }
+    .msg-bubble { max-width:82%; padding:9px 13px; border-radius:14px; font-size:.86rem; line-height:1.55; word-break:break-word; }
     .msg-bubble.enviado { align-self:flex-end; background:rgba(0,200,150,.18); border-bottom-right-radius:3px; }
     .msg-bubble.recibido { align-self:flex-start; background:var(--surface2); border-bottom-left-radius:3px; }
-    .msg-autor { font-size:.67rem; font-weight:700; color:var(--accent2); margin-bottom:2px; }
-    .msg-ts { font-size:.64rem; color:var(--text2); margin-top:3px; text-align:right; }
     .chat-attachment-preview { display:none; align-items:center; gap:8px; padding:7px 10px; border-top:1px solid var(--border); background:rgba(0,0,0,.18); flex-shrink:0; }
     .chat-attachment-preview.show { display:flex; }
-    .chat-attach-visual { width:40px; height:40px; flex-shrink:0; border-radius:6px; overflow:hidden; background:rgba(0,153,255,.12); display:flex; align-items:center; justify-content:center; color:var(--accent2); font-size:1.3rem; }
+    .chat-attach-visual { width:44px; height:44px; flex-shrink:0; border-radius:6px; overflow:hidden; background:rgba(0,153,255,.12); display:flex; align-items:center; justify-content:center; color:var(--accent2); font-size:1.3rem; }
     .chat-attach-visual img { width:100%; height:100%; object-fit:cover; }
     .chat-attach-info { flex:1; min-width:0; }
-    .chat-attach-fname { font-size:.76rem; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text); }
-    .chat-attach-fsize { font-size:.68rem; color:var(--text2); margin-top:1px; }
+    .chat-attach-fname { font-size:.78rem; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text); }
+    .chat-attach-fsize { font-size:.7rem; color:var(--text2); margin-top:2px; }
     .chat-attach-rm { background:none; border:none; cursor:pointer; color:var(--text2); padding:4px; border-radius:4px; display:flex; align-items:center; transition:var(--trans); flex-shrink:0; }
     .chat-attach-rm:hover { color:var(--danger); }
-    .chat-input-row { padding:10px; border-top:1px solid var(--border); display:flex; gap:6px; align-items:flex-end; flex-shrink:0; }
-    .chat-input { flex:1; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:8px 11px; color:var(--text); font-size:.85rem; font-family:inherit; resize:none; max-height:100px; min-height:36px; }
-    .chat-input:focus { outline:none; border-color:var(--accent); }
     .chat-attach-btn { background:none; border:1px solid var(--border); border-radius:8px; cursor:pointer; color:var(--text2); padding:5px 7px; transition:var(--trans); flex-shrink:0; display:flex; align-items:center; align-self:flex-end; margin-bottom:1px; }
     .chat-attach-btn:hover { border-color:var(--accent2); color:var(--accent2); background:rgba(0,153,255,.08); }
     .chat-send-btn { background:linear-gradient(135deg,#00c896,#00a876); border:none; border-radius:8px; color:#fff; padding:8px 11px; cursor:pointer; transition:var(--trans); display:flex; align-items:center; flex-shrink:0; }
     .chat-send-btn:hover { transform:translateY(-1px); box-shadow:0 3px 12px rgba(0,200,150,.4); }
     .chat-send-btn:disabled { opacity:.5; cursor:not-allowed; transform:none; }
-    .chat-audio-player { width:100%; max-width:210px; height:32px; border-radius:20px; margin-bottom:4px; accent-color:var(--accent); display:block; }
+    .msg-autor { font-size:.72rem; font-weight:700; color:var(--accent2); margin-bottom:3px; }
+    .msg-ts { font-size:.67rem; color:var(--text2); margin-top:4px; text-align:right; }
+    .chat-input-row { padding:10px 12px; border-top:1px solid var(--border); display:flex; gap:7px; align-items:flex-end; flex-shrink:0; }
+    .chat-input { flex:1; background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:9px 13px; color:var(--text); font-size:.88rem; font-family:inherit; resize:none; max-height:120px; min-height:38px; line-height:1.45; }
+    .chat-input:focus { outline:none; border-color:var(--accent); }
+    .chat-audio-player { width:100%; max-width:300px; height:36px; border-radius:20px; margin-bottom:4px; accent-color:var(--accent); display:block; }
     .chat-resize-handle { width:5px; background:transparent; cursor:col-resize; flex-shrink:0; transition:background .15s; position:relative; }
     .chat-resize-handle::after { content:''; position:absolute; inset:0 -3px; }
     .chat-resize-handle:hover, .chat-resize-handle.dragging { background:var(--accent); }
-    @media(max-width:1100px){ .chat-aside { width:260px; } }
+    @media(max-width:1400px){ .chat-aside { width:360px; } }
+    @media(max-width:1100px){ .chat-aside { width:300px; } }
     @media(max-width:860px){ .chat-aside { display:none; } .chat-resize-handle { display:none; } }
 
   /* ── PRESPLASH ───────────────────────────────────────── */

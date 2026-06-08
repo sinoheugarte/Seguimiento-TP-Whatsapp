@@ -133,28 +133,56 @@ async function guardarMensaje(msg) {
   if (!chatId || chatId === 'status@broadcast') return;
   const m = msg.message || {};
 
-  // Texto visible del mensaje
-  const texto = m.conversation || m.extendedTextMessage?.text || m.imageMessage?.caption ||
-    m.videoMessage?.caption || m.documentMessage?.caption ||
-    (m.stickerMessage ? '[Sticker]' : '');
+  // Ignorar mensajes no visibles: reacciones, eliminaciones, distribución de claves, etc.
+  if (m.protocolMessage || m.reactionMessage || m.senderKeyDistributionMessage ||
+      m.retryRequestMessage || m.appStateSyncKeyShare) return;
 
-  // Tipo de media y descarga
+  // Desenvolver mensajes "envoltorio" (efímeros, ver-una-vez, doc con caption, etc.)
+  const mc = m.ephemeralMessage?.message ||
+             m.viewOnceMessage?.message ||
+             m.viewOnceMessageV2?.message?.message ||
+             m.documentWithCaptionMessage?.message ||
+             m;
+
+  // Extraer texto según el tipo real del mensaje
+  let texto = mc.conversation || mc.extendedTextMessage?.text ||
+    mc.imageMessage?.caption || mc.videoMessage?.caption ||
+    mc.documentMessage?.caption || '';
+
+  if (!texto) {
+    if (mc.stickerMessage)             texto = '[Sticker]';
+    else if (mc.locationMessage)       texto = `📍 Ubicación compartida`;
+    else if (mc.liveLocationMessage)   texto = `📍 Ubicación en vivo`;
+    else if (mc.contactMessage)        texto = `👤 ${mc.contactMessage.displayName || 'Contacto'}`;
+    else if (mc.contactsArrayMessage)  texto = `👥 Contactos compartidos`;
+    else if (mc.pollCreationMessage)   texto = `📊 Encuesta: ${mc.pollCreationMessage.name || ''}`;
+    else if (mc.pollCreationMessageV3) texto = `📊 Encuesta: ${mc.pollCreationMessageV3.name || ''}`;
+    else if (mc.groupInviteMessage)    texto = `👥 Invitación al grupo: ${mc.groupInviteMessage.groupName || 'grupo'}`;
+    else if (mc.buttonsMessage)        texto = mc.buttonsMessage.contentText || mc.buttonsMessage.headerText || '[Mensaje con botones]';
+    else if (mc.listMessage)           texto = mc.listMessage.description || mc.listMessage.title || '[Lista]';
+    else if (mc.interactiveMessage)    texto = mc.interactiveMessage.body?.text || '[Mensaje interactivo]';
+    else if (mc.templateMessage)       texto = mc.templateMessage.hydratedTemplate?.hydratedContentText || '[Plantilla]';
+    else if (m.viewOnceMessage || m.viewOnceMessageV2) texto = '[Mensaje de ver una vez]';
+  }
+
+  // Tipo de media y descarga (usando mc — el contenido real)
   let mediaTipo = null;
   let mediaPath = null;
-  const tieneImagen = !!(m.imageMessage || m.stickerMessage);
-  const tieneVideo  = !!m.videoMessage;
-  const tieneAudio  = !!m.audioMessage;
-  const tieneDoc    = !!m.documentMessage;
+  const tieneImagen = !!(mc.imageMessage || mc.stickerMessage);
+  const tieneVideo  = !!mc.videoMessage;
+  const tieneAudio  = !!mc.audioMessage;
+  const tieneDoc    = !!mc.documentMessage;
 
   if (tieneImagen || tieneVideo || tieneDoc || tieneAudio) {
     try {
       if (!fs.existsSync(CHAT_MEDIA_DIR)) fs.mkdirSync(CHAT_MEDIA_DIR, { recursive: true });
-      const buf = await downloadMediaMessage(msg, 'buffer', {}, { reuploadRequest: socket?.updateMediaMessage });
+      const msgDownload = (mc !== m) ? { ...msg, message: mc } : msg;
+      const buf = await downloadMediaMessage(msgDownload, 'buffer', {}, { reuploadRequest: socket?.updateMediaMessage });
       let ext = '.bin';
-      if (tieneImagen)     ext = m.stickerMessage ? '.webp' : '.jpg';
+      if (tieneImagen)     ext = mc.stickerMessage ? '.webp' : '.jpg';
       else if (tieneVideo) ext = '.mp4';
       else if (tieneAudio) ext = '.ogg';
-      else if (tieneDoc)   ext = path.extname(m.documentMessage.fileName || '') || '.bin';
+      else if (tieneDoc)   ext = path.extname(mc.documentMessage.fileName || '') || '.bin';
       const fname = `${msg.key.id || Date.now()}${ext}`.replace(/[^\w.\-]/g, '_');
       fs.writeFileSync(path.join(CHAT_MEDIA_DIR, fname), buf);
       mediaPath = `/chat-media/${fname}`;
@@ -181,7 +209,7 @@ async function guardarMensaje(msg) {
     autor: fromMe ? 'Tú' : (pushName || contactosCache.get(chatId) || chatId.replace(/@[^@]+$/, '')),
     mediaTipo,
     mediaPath,
-    docNombre: m.documentMessage?.fileName || null
+    docNombre: mc.documentMessage?.fileName || null
   };
 
   if (!mensajesStore.has(chatId)) mensajesStore.set(chatId, []);
@@ -190,7 +218,13 @@ async function guardarMensaje(msg) {
     lista.push(msgObj);
     if (lista.length > MAX_MSGS_POR_CHAT) lista.shift();
   }
-  const ultimoTexto = texto || (mediaTipo === 'imagen' ? '📷 Imagen' : mediaTipo === 'video' ? '🎥 Video' : mediaTipo === 'audio' ? '🎵 Audio' : mediaTipo === 'documento' ? `📄 ${m.documentMessage?.fileName || 'Documento'}` : '[Media]');
+  const ultimoTexto = texto || (
+    mediaTipo === 'imagen'    ? '📷 Imagen' :
+    mediaTipo === 'video'     ? '🎥 Video' :
+    mediaTipo === 'audio'     ? '🎵 Audio' :
+    mediaTipo === 'documento' ? `📄 ${mc.documentMessage?.fileName || 'Documento'}` :
+    '[Mensaje]'
+  );
   chatsRecientes.set(chatId, { chatId, nombre, ultimo: ultimoTexto, ts, esGrupo: chatId.endsWith('@g.us') });
   if (_sseBroadcast) _sseBroadcast({ tipo: 'mensaje', ...msgObj, chatNombre: nombre });
   guardarMensajesCache();

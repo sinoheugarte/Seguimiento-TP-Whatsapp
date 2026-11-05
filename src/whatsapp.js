@@ -23,6 +23,10 @@ const MAX_MSGS_POR_CHAT = 500;
 let _sseBroadcast = null;
 function setSseBroadcast(fn) { _sseBroadcast = fn; }
 
+// Estado de carga del historial (para clientes SSE que conectan tarde)
+let _historialEstado = { cargando: false, procesados: 0, total: 0 };
+function getHistorialEstado() { return _historialEstado; }
+
 function setHandoff(chatId, activo) {
   if (activo) handoffChats.add(chatId);
   else handoffChats.delete(chatId);
@@ -352,14 +356,17 @@ async function inicializar() {
     if (messages.length > 0) {
       const total = messages.length;
       log(`Procesando ${total} mensajes históricos de WhatsApp...`);
+      _historialEstado = { cargando: true, procesados: 0, total };
       if (_sseBroadcast) _sseBroadcast({ tipo: 'historial_progreso', procesados: 0, total });
       for (let i = 0; i < messages.length; i++) {
         try { await guardarMensaje(messages[i], { descargarMedia: false, emitirSSE: false }); } catch (_) {}
         // Enviar progreso cada 100 mensajes para no saturar SSE
-        if (_sseBroadcast && (i + 1) % 100 === 0) {
-          _sseBroadcast({ tipo: 'historial_progreso', procesados: i + 1, total });
+        if ((i + 1) % 100 === 0) {
+          _historialEstado = { cargando: true, procesados: i + 1, total };
+          if (_sseBroadcast) _sseBroadcast({ tipo: 'historial_progreso', procesados: i + 1, total });
         }
       }
+      _historialEstado = { cargando: false, procesados: total, total };
       log(`Historial cargado: ${mensajesStore.size} chats en memoria`);
       // Un solo evento SSE para que el frontend recargue la lista
       if (_sseBroadcast) _sseBroadcast({ tipo: 'historial_listo', chats: mensajesStore.size });
@@ -584,7 +591,7 @@ async function cerrarSesion() {
   setTimeout(inicializar, 1500);
 }
 
-module.exports = { inicializar, enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion, getMensajesStore: () => mensajesStore, getChatsRecientes, setSseBroadcast, setHandoff, isHandoff };
+module.exports = { inicializar, enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion, getMensajesStore: () => mensajesStore, getChatsRecientes, setSseBroadcast, setHandoff, isHandoff, getHistorialEstado };
 
 function getChatsRecientes() {
   // Re-resolver nombres en cada consulta usando el cache actual (puede haber llegado después del primer mensaje)

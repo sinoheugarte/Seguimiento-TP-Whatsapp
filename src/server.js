@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion, getMensajesStore, getChatsRecientes, setSseBroadcast, setHandoff, isHandoff } = require('./whatsapp');
+const { enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion, getMensajesStore, getChatsRecientes, setSseBroadcast, setHandoff, isHandoff, getHistorialEstado } = require('./whatsapp');
 const qrcode = require('qrcode');
 const { enviarCorreo } = require('./email');
 const { ejecutarProgramacion, iniciarProgramaciones, detenerTodo } = require('./scheduler');
@@ -350,6 +350,11 @@ app.get('/api/chat/sse', (req, res) => {
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
+  // Si el historial todavía está cargando, informar al cliente recién conectado
+  const estado = getHistorialEstado();
+  if (estado.cargando) {
+    res.write(`data: ${JSON.stringify({ tipo: 'historial_progreso', procesados: estado.procesados, total: estado.total })}\n\n`);
+  }
   sseClientes.push(res);
   const hb = setInterval(() => { try { res.write(': ping\n\n'); } catch (_) {} }, 25000);
   req.on('close', () => {

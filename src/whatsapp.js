@@ -182,7 +182,12 @@ async function guardarMensaje(msg, { descargarMedia = true } = {}) {
   const tieneAudio  = !!mc.audioMessage;
   const tieneDoc    = !!mc.documentMessage;
 
-  if (descargarMedia && (tieneImagen || tieneVideo || tieneDoc || tieneAudio)) {
+  // Detectar tipo de media siempre (para mostrar el ícono correcto aunque no descarguemos)
+  if (tieneImagen || tieneVideo || tieneAudio || tieneDoc) {
+    mediaTipo = tieneImagen ? 'imagen' : tieneVideo ? 'video' : tieneAudio ? 'audio' : 'documento';
+  }
+
+  if (descargarMedia && mediaTipo) {
     try {
       if (!fs.existsSync(CHAT_MEDIA_DIR)) fs.mkdirSync(CHAT_MEDIA_DIR, { recursive: true });
       const msgDownload = (mc !== m) ? { ...msg, message: mc } : msg;
@@ -195,19 +200,19 @@ async function guardarMensaje(msg, { descargarMedia = true } = {}) {
       const fname = `${msg.key.id || Date.now()}${ext}`.replace(/[^\w.\-]/g, '_');
       fs.writeFileSync(path.join(CHAT_MEDIA_DIR, fname), buf);
       mediaPath = `/chat-media/${fname}`;
-      mediaTipo = tieneImagen ? 'imagen' : tieneVideo ? 'video' : tieneAudio ? 'audio' : 'documento';
     } catch (e) {
       log(`[ChatMedia] no se pudo descargar (${e.message?.slice(0,60)})`);
-      mediaTipo = tieneImagen ? 'imagen' : tieneVideo ? 'video' : tieneAudio ? 'audio' : 'documento';
     }
   }
 
   const fromMe = !!msg.key.fromMe;
   const ts = Number(msg.messageTimestamp) * 1000 || Date.now();
   const pushName = msg.pushName || '';
+  // Para @lid intentamos resolver al @s.whatsapp.net equivalente para buscar el nombre
+  const chatIdResuelto = chatId.endsWith('@lid') ? resolverLid(chatId) : chatId;
   const nombre = chatId.endsWith('@g.us')
     ? (gruposCache.find(g => g.chatId === chatId)?.nombre || chatId.replace('@g.us', ''))
-    : (contactosCache.get(chatId) || pushName || chatId.replace(/@[^@]+$/, ''));
+    : (contactosCache.get(chatIdResuelto) || contactosCache.get(chatId) || pushName || chatId.replace(/@[^@]+$/, ''));
 
   const msgObj = {
     id: msg.key.id,
@@ -215,7 +220,7 @@ async function guardarMensaje(msg, { descargarMedia = true } = {}) {
     fromMe,
     texto: texto || '',
     ts,
-    autor: fromMe ? 'Tú' : (pushName || contactosCache.get(chatId) || chatId.replace(/@[^@]+$/, '')),
+    autor: fromMe ? 'Tú' : (pushName || contactosCache.get(chatIdResuelto) || contactosCache.get(chatId) || chatId.replace(/@[^@]+$/, '')),
     mediaTipo,
     mediaPath,
     docNombre: mc.documentMessage?.fileName || null
@@ -334,6 +339,14 @@ async function inicializar() {
     }
     guardarContactosCache();
     log(`Contactos tras historial: ${contactosCache.size}`);
+
+    // Extraer nombres de los mensajes históricos vía pushName (mejora resolución de @lid)
+    for (const msg of messages) {
+      if (!msg.pushName) continue;
+      const cid = msg.key?.remoteJid;
+      if (!cid || cid.endsWith('@g.us') || cid === 'status@broadcast') continue;
+      if (!contactosCache.has(cid)) contactosCache.set(cid, msg.pushName);
+    }
 
     // Guardar mensajes históricos SIN descargar medios (evita bloquear la conexión)
     if (messages.length > 0) {

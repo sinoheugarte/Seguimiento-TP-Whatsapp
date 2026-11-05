@@ -836,7 +836,7 @@ async function inicializar() {
       if (isLoggedOut) {
         _reconectarIntentos = 0;
         log('Sesión cerrada (loggedOut). Limpiando credenciales...');
-        limpiarCredenciales(['contacts-cache.json', 'messages-cache.json']);
+        limpiarCredenciales(['contacts-cache.json', 'messages-cache.json', 'colores-autores.json']);
         setSync({ fase: 'conectando', texto: 'Sesión cerrada — generando nuevo QR…', pct: null });
         programarReconexion(3000);
       } else {
@@ -1190,7 +1190,7 @@ async function cerrarSesion() {
   _generacion++; // ignorar el evento de cierre de esta conexión: aquí se reconecta una sola vez
   try { if (socket) await socket.logout(); } catch (_) {}
   descartarSocket();
-  limpiarCredenciales(['contacts-cache.json']);
+  limpiarCredenciales(['contacts-cache.json', 'colores-autores.json']);
   log('Sesión cerrada manualmente. Generando nuevo QR...');
   setSync({ fase: 'conectando', texto: 'Sesión cerrada — generando nuevo QR…', pct: null, procesados: 0, total: 0 });
   programarReconexion(1500);

@@ -1771,6 +1771,30 @@
 
         <div id="lista-grupos-email" class="prog-grid"></div>
       </div>
+
+      <div class="card" id="card-acceso">
+        <div class="card-title">Acceso al panel</div>
+        <div class="card-desc" id="acc-desc">Protege el panel con usuario y contraseña. Es obligatorio si la aplicación se usa desde otra computadora o desde la nube.</div>
+        <div class="form-row2">
+          <div class="field"><label for="acc-usuario">Usuario</label><input type="text" id="acc-usuario" autocomplete="username" autocapitalize="off" spellcheck="false" placeholder="Ej: operaciones"></div>
+          <div class="field" id="acc-actual-wrap" style="display:none"><label for="acc-actual">Contraseña actual</label><input type="password" id="acc-actual" autocomplete="current-password"></div>
+        </div>
+        <div class="form-row2">
+          <div class="field"><label for="acc-nueva">Nueva contraseña</label><input type="password" id="acc-nueva" autocomplete="new-password" placeholder="Mínimo 8 caracteres"></div>
+          <div class="field"><label for="acc-repetir">Repetir contraseña</label><input type="password" id="acc-repetir" autocomplete="new-password"></div>
+        </div>
+        <div class="btn-row" style="margin-top:4px">
+          <button class="btn btn-accent btn-sm" id="acc-guardar" onclick="guardarAcceso()">Crear contraseña</button>
+          <button class="btn btn-ghost btn-sm" id="acc-salir" onclick="cerrarSesionPanel()" style="display:none">Cerrar sesión del panel</button>
+        </div>
+        <div class="toggle-row" style="margin:24px 0 0">
+          <div class="toggle-desc">
+            <strong>Pedir contraseña también en esta PC</strong>
+            <span>Si está apagado, en la PC donde corre la aplicación se entra directo, como hasta ahora.</span>
+          </div>
+          <label class="toggle-switch"><input type="checkbox" id="acc-local" onchange="guardarExigirLocal(this)"><span class="toggle-slider"></span></label>
+        </div>
+      </div>
     </div>
 
     <!-- ══ AGENTE IA ══ -->
@@ -2063,6 +2087,16 @@
 </div>
 
 <script>
+// Si la sesión del panel venció, llevar a la pantalla de ingreso
+(function () {
+  const original = window.fetch;
+  window.fetch = async (...args) => {
+    const r = await original(...args);
+    const url = String(args[0]?.url || args[0] || '');
+    if (r.status === 401 && url.startsWith('/api/') && !url.startsWith('/api/auth/')) location.href = '/login';
+    return r;
+  };
+})();
 let estado = { grupos: [], gruposConfig: [], destinatariosEmail: [], programaciones: [] };
 const archivosMap = {};
 
@@ -2135,6 +2169,46 @@ function mostrarPanel(id) {
   const main = document.querySelector('#panels-view main');
   if (main) main.scrollTop = 0;
   if (id === 'agente') initPanelAgente();
+  if (id === 'ajustes') cargarAcceso();
+}
+
+// ── Acceso al panel (usuario y contraseña) ──
+let _accEstado = null;
+async function cargarAcceso() {
+  try { _accEstado = await (await fetch('/api/auth/estado')).json(); } catch (_) { return; }
+  const e = _accEstado;
+  document.getElementById('acc-actual-wrap').style.display = e.configurado ? '' : 'none';
+  document.getElementById('acc-guardar').textContent = e.configurado ? 'Cambiar contraseña' : 'Crear contraseña';
+  document.getElementById('acc-salir').style.display = e.via === 'sesion' ? '' : 'none';
+  document.getElementById('acc-local').checked = !!e.exigirEnLocal;
+  document.getElementById('acc-local').disabled = !e.configurado;
+  if (e.usuario && !document.getElementById('acc-usuario').value) document.getElementById('acc-usuario').value = e.usuario;
+  document.getElementById('acc-desc').textContent = e.configurado
+    ? `Contraseña configurada para el usuario «${e.usuario || ''}». ${e.modoNube ? 'Modo nube activo: siempre se pide contraseña.' : ''}`
+    : 'Aún no hay contraseña. Créala para poder entrar al panel desde otra computadora o desde la nube.';
+}
+async function guardarAcceso() {
+  const v = id => document.getElementById(id).value;
+  if (v('acc-nueva').length < 8) { toast(false, 'La contraseña debe tener al menos 8 caracteres'); return; }
+  if (v('acc-nueva') !== v('acc-repetir')) { toast(false, 'Las contraseñas no coinciden'); return; }
+  const r = await fetch('/api/auth/configurar', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario: v('acc-usuario').trim(), password: v('acc-nueva'), passwordActual: v('acc-actual') }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) { toast(false, d.error || 'No se pudo guardar'); return; }
+  ['acc-actual', 'acc-nueva', 'acc-repetir'].forEach(id => document.getElementById(id).value = '');
+  toast(true, 'Contraseña guardada');
+  cargarAcceso();
+}
+async function guardarExigirLocal(cb) {
+  const r = await fetch('/api/auth/configurar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ exigirEnLocal: cb.checked }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) { cb.checked = !cb.checked; toast(false, d.error || 'No se pudo guardar'); return; }
+  toast(true, cb.checked ? 'Se pedirá contraseña también en esta PC' : 'En esta PC se entrará sin contraseña');
+  cargarAcceso();
+}
+async function cerrarSesionPanel() {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  location.href = '/login';
 }
 
 // ── Archivos ─────────────────────────────────────────────────────────────────

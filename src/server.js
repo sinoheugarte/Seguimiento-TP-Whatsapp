@@ -32,6 +32,8 @@ function sseEnviar(data) {
 setSseBroadcast(sseEnviar);
 
 app.use(express.json());
+app.set('trust proxy', 'loopback');
+require('./auth').registrar(app);
 app.use(express.static(path.join(__dirname, '../public')));
 
 // ── Helpers ─────────────────────────────────────────────────────────────────

@@ -1,4 +1,13 @@
 require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
+
+// config.json es local (no está en git): si falta, se crea desde la plantilla
+const CONFIG = path.resolve(__dirname, '../config.json');
+if (!fs.existsSync(CONFIG)) {
+  fs.copyFileSync(path.resolve(__dirname, '../config.example.json'), CONFIG);
+  console.log('✓ config.json creado desde config.example.json');
+}
 const { inicializar: iniciarWhatsapp } = require('./whatsapp');
 const { inicializar: iniciarEmail } = require('./email');
 const { iniciarProgramaciones } = require('./scheduler');

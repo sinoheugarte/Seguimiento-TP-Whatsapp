@@ -10,3 +10,5 @@ media/*.webp
 .baileys_auth/
 public/chat-media/
 media/
+config.json
+panel-auth.json

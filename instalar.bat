@@ -66,6 +66,7 @@ echo  [✓] Directorios creados
 :: ── 5. Verificar config.json ─────────────────────────────────────────────────
 echo.
 echo  [4/5] Verificando configuración...
+if not exist "config.json" if exist "config.example.json" copy "config.example.json" "config.json" >nul
 if not exist "config.json" (
     echo  [!] No se encontró config.json
     echo      Copiando configuración por defecto...

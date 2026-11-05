@@ -14,6 +14,7 @@ let ultimoQR = null;
 let gruposCache = [];
 let contactosCache = new Map(); // chatId → nombre
 const lidToJid = new Map(); // @lid → @s.whatsapp.net (mismo contacto, distinto formato)
+let _reconectarIntentos = 0;
 
 const mensajesStore = new Map(); // chatId -> Message[]
 const chatsRecientes = new Map(); // chatId -> {chatId, nombre, ultimo, ts, esGrupo}
@@ -266,30 +267,40 @@ async function inicializar() {
     if (connection === 'open') {
       listo = true;
       ultimoQR = null;
+      _reconectarIntentos = 0;
       log('Conectado correctamente ✓');
     }
 
     if (connection === 'close') {
       listo = false;
       const statusCode = lastDisconnect?.error?.output?.statusCode;
-      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-      log('Desconectado. Reconectar: ' + shouldReconnect);
-      if (shouldReconnect) {
-        setTimeout(inicializar, 5000);
-      } else {
-        // Sesión cerrada — limpiar credenciales y reiniciar para obtener QR nuevo
+      const reason = lastDisconnect?.error?.message || '';
+      const isLoggedOut = statusCode === DisconnectReason.loggedOut;
+      // 515 = RestartRequired (Baileys), 408 = Timeout, 503 = Unavailable
+      const isRestartRequired = statusCode === 515;
+      const delay = isRestartRequired ? 2000 : Math.min(5000 * Math.pow(2, _reconectarIntentos), 60000);
+
+      log(`Desconectado. Código=${statusCode} Razón="${reason}" Reintento=${_reconectarIntentos}`);
+
+      if (isLoggedOut) {
+        _reconectarIntentos = 0;
         log('Sesión cerrada (loggedOut). Limpiando credenciales...');
         try {
           const files = fs.readdirSync(AUTH_DIR);
           for (const f of files) {
-            if (f !== 'contacts-cache.json') {
+            if (f !== 'contacts-cache.json' && f !== 'messages-cache.json') {
               fs.unlinkSync(path.join(AUTH_DIR, f));
             }
           }
         } catch (_) {}
         setTimeout(inicializar, 3000);
+      } else {
+        _reconectarIntentos++;
+        log(`Reconectando en ${delay / 1000}s (intento ${_reconectarIntentos})...`);
+        setTimeout(inicializar, delay);
       }
     }
+
   });
 
   socket.ev.on('groups.upsert', (grupos) => {

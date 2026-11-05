@@ -632,6 +632,8 @@
       align-self: center; position: sticky; top: 8px; z-index: 2; margin: 12px 0 8px; padding: 5px 12px; border-radius: 8px;
       background: var(--elev); color: var(--ink-2); font-size: 12.5px; font-weight: 500; box-shadow: 0 1px .5px rgba(0,0,0,.25);
     }
+    .dia { display: flex; flex-direction: column; flex: none; }
+    .mencion { color: var(--link); font-weight: 500; }
     .msg-row { display: flex; margin-top: 2px; padding: 0 8px; }
     .msg-row.first { margin-top: 10px; }
     .msg-row.out { justify-content: flex-end; }
@@ -4546,7 +4548,11 @@ function _beginIntroAnimation(scr, _au) {
       html += `<span class="msg-muted">${escHtml(_etiquetaMedia(tipo, msg.docNombre))}</span>${msg.texto ? '<br>' : ''}`;
     }
     const texto = msg.texto && msg.texto !== '[Audio]' ? msg.texto : '';
-    if (texto) html += `<span>${_linkify(escHtml(texto))}</span>`;
+    if (texto) {
+      let t = _linkify(escHtml(texto));
+      for (const m of new Set(msg.menciones || [])) { const e = escHtml(m); t = t.split(e).join(`<span class="mencion">${e}</span>`); }
+      html += `<span>${t}</span>`;
+    }
     return html || '<span class="msg-muted">Mensaje no compatible</span>';
   }
 
@@ -4567,12 +4573,17 @@ function _beginIntroAnimation(scr, _au) {
     const ts = msg.ts || Date.now();
     const dia = _diaClave(ts);
     const prev = _ultimoMsgRender;
-    if (!prev || prev.dia !== dia) {
+    // Cada día en su propio bloque: la fecha fija de arriba se reemplaza al pasar al día siguiente
+    if (!prev || prev.dia !== dia || !area.lastElementChild?.classList.contains('dia')) {
+      const bloque = document.createElement('section');
+      bloque.className = 'dia';
       const sep = document.createElement('div');
       sep.className = 'day-sep';
       sep.textContent = _etiquetaDia(ts);
-      area.appendChild(sep);
+      bloque.appendChild(sep);
+      area.appendChild(bloque);
     }
+    const contenedor = area.lastElementChild;
     const autorId = msg.fromMe ? 'yo' : (msg.autorId || msg.autor || '');
     const continua = prev && prev.dia === dia && prev.autorId === autorId && (ts - prev.ts) < 5 * 60e3;
     const esGrupo = (msg.chatId || _chatActual || '').endsWith('@g.us');
@@ -4586,7 +4597,7 @@ function _beginIntroAnimation(scr, _au) {
     const row = document.createElement('div');
     row.className = `msg-row ${msg.fromMe ? 'out' : 'in'}${grp ? ' grp' : ''}${continua ? '' : ' first'}${animar ? ' msg-pop' : ''}`;
     row.innerHTML = `${fotoAutor}<div class="msg-bubble ${msg.fromMe ? 'enviado' : 'recibido'}">${autorHtml}${_renderContenido(msg)}<span class="msg-ts">${hora}</span></div>`;
-    area.appendChild(row);
+    contenedor.appendChild(row);
     _ultimoMsgRender = { dia, autorId, ts };
   }
 

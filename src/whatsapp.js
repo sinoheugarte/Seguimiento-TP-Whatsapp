@@ -265,9 +265,14 @@ function procesarContacto(c) {
   if (c.notify) setNombre(id, c.notify, 1);
 }
 
+// Remitente de un mensaje de grupo: en vivo viene en key.participant y en el historial en msg.participant
+function participanteDe(msg) {
+  return msg.key?.participant || msg.participant || msg.key?.participantAlt || null;
+}
+
 // Aprende LID↔número y pushName a partir de la clave de un mensaje
 function aprenderDeMensaje(msg) {
-  const k = msg.key || {};
+  const k = { ...(msg.key || {}), participant: participanteDe(msg) };
   if (k.remoteJidAlt) {
     if (k.remoteJid?.endsWith('@lid')) setLidPn(k.remoteJid, k.remoteJidAlt);
     else if (k.remoteJidAlt.endsWith('@lid')) setLidPn(k.remoteJidAlt, k.remoteJid);
@@ -505,12 +510,17 @@ async function infoChat(chatId) {
 // Mensajes de grupo guardados sin autor: pedir al celular que reenvíe ese tramo del historial
 const chatsConAutorNuevo = new Set();
 const historialPedido = new Set();
-async function recuperarAutores(chatId) {
-  if (!listo || !socket || !chatId.endsWith('@g.us') || historialPedido.has(chatId)) return false;
+const rondasHistorial = new Map();
+async function recuperarAutores(chatId, ancla = null) {
+  if (!listo || !socket || !chatId.endsWith('@g.us')) return false;
+  if (!ancla && historialPedido.has(chatId)) return false;
   const lista = mensajesStore.get(chatId) || [];
-  const sinAutor = lista.filter(m => !m.fromMe && !m.autorId).length;
+  const sinAutor = lista.filter(m => !m.fromMe && !m.autorId && (!ancla || m.ts < ancla.ts)).length;
   if (!sinAutor) return false;
-  const ancla = lista[lista.length - 1];
+  const rondas = rondasHistorial.get(chatId) || 0;
+  if (rondas >= 5) return false;
+  rondasHistorial.set(chatId, rondas + 1);
+  ancla = ancla || lista[lista.length - 1];
   historialPedido.add(chatId);
   try {
     await socket.fetchMessageHistory(Math.min(100, lista.length), { remoteJid: chatId, id: ancla.id, fromMe: !!ancla.fromMe }, ancla.ts);
@@ -527,16 +537,36 @@ function avisarAutoresNuevos() {
   chatsConAutorNuevo.clear();
 }
 
+// Menciones "@2525507911703" → "@Nombre" (o el número si no está guardado)
+function resolverMenciones(texto) {
+  if (!texto || !texto.includes('@')) return { texto, menciones: [] };
+  const menciones = [];
+  const nuevo = texto.replace(/@(\d{6,})/g, (orig, d) => {
+    for (const jid of [`${d}@lid`, `${d}@s.whatsapp.net`]) {
+      const { nombre, prio } = nombreYPrio(jid);
+      const etiqueta = esYo(jid) ? 'Tú' : (prio >= 2 && nombre) ? nombre : (numeroDe(jid) || (nombre ? `~${nombre}` : ''));
+      if (etiqueta) { menciones.push(`@${etiqueta}`); return `@${etiqueta}`; }
+    }
+    return orig;
+  });
+  return { texto: nuevo, menciones };
+}
+
+function conMenciones(m) {
+  const r = resolverMenciones(m.texto);
+  return r.menciones.length ? { ...m, texto: r.texto, menciones: r.menciones } : m;
+}
+
 // Mensajes con el autor resuelto en el momento de leerlos (los nombres pueden llegar después)
 function mensajesDe(chatId) {
   const lista = mensajesStore.get(chatId) || [];
-  if (!chatId.endsWith('@g.us')) return lista;
+  if (!chatId.endsWith('@g.us')) return lista.map(conMenciones);
   const digitosGrupo = chatId.split('@')[0];
   return lista.map(m => {
-    if (m.fromMe) return m;
-    if (!m.autorId) return m.autor === digitosGrupo ? { ...m, autor: '' } : m;
+    if (m.fromMe) return conMenciones(m);
+    if (!m.autorId) return conMenciones(m.autor === digitosGrupo ? { ...m, autor: '' } : m);
     const push = m.autorPush ?? (m.autor && !/^[+\d\s~]/.test(m.autor) ? m.autor : '');
-    return { ...m, ...autorInfo(m.autorId, push) };
+    return conMenciones({ ...m, ...autorInfo(m.autorId, push) });
   });
 }
 
@@ -615,7 +645,7 @@ async function guardarMensaje(msg, { descargarMedia = true, emitirSSE = true } =
   const ts = Number(msg.messageTimestamp) * 1000 || Date.now();
   const pushName = fromMe ? '' : (msg.pushName || '');
   const esGrupo = chatId.endsWith('@g.us');
-  const autorJid = esGrupo ? normJid(msg.key.participant) : chatId;
+  const autorJid = esGrupo ? normJid(participanteDe(msg)) : chatId;
 
   const msgObj = {
     id: msg.key.id,
@@ -670,7 +700,7 @@ async function guardarMensaje(msg, { descargarMedia = true, emitirSSE = true } =
   }
   if (emitirSSE) {
     const extra = esGrupo && !fromMe && autorJid ? autorInfo(autorJid, pushName) : {};
-    emitir({ tipo: 'mensaje', ...msgObj, ...extra, chatNombre: etiquetaChat(chatId, pushName) });
+    emitir({ tipo: 'mensaje', ...conMenciones({ ...msgObj, ...extra }), chatNombre: etiquetaChat(chatId, pushName) });
   }
   guardarMensajesCache();
   return msgObj;
@@ -816,6 +846,16 @@ async function inicializar() {
         if (!bajoDemanda) setSync({ procesados: i + 1 });
         await esperar(0); // ceder el event loop para no congelar la conexión
       }
+    }
+    if (bajoDemanda) {
+      // Pedir el tramo anterior si en ese grupo aún quedan mensajes más viejos sin autor
+      const masViejo = new Map();
+      for (const m of messages) {
+        const g = normJid(m.key?.remoteJid);
+        const ts = Number(m.messageTimestamp) * 1000;
+        if (g?.endsWith('@g.us') && ts && (!masViejo.has(g) || ts < masViejo.get(g).ts)) masViejo.set(g, { id: m.key.id, fromMe: !!m.key.fromMe, ts });
+      }
+      for (const [g, ancla] of masViejo) recuperarAutores(g, ancla).catch(() => {});
     }
     avisarAutoresNuevos();
     emitir({ tipo: 'nombres' });

@@ -1,4 +1,4 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, downloadMediaMessage, jidNormalizedUser } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, downloadMediaMessage, jidNormalizedUser, proto } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
@@ -475,6 +475,7 @@ async function infoChat(chatId) {
   }
   const info = { chatId, presencia: resumenPresencia(chatId) };
   if (!chatId.endsWith('@g.us')) return info;
+  info.recuperandoAutores = await recuperarAutores(chatId);
   let m = metaGrupos.get(chatId);
   if (listo && socket && (!m || Date.now() - m.ts > 10 * 60e3)) {
     try {
@@ -499,6 +500,31 @@ async function infoChat(chatId) {
     info.totalParticipantes = lista.length;
   }
   return info;
+}
+
+// Mensajes de grupo guardados sin autor: pedir al celular que reenvíe ese tramo del historial
+const chatsConAutorNuevo = new Set();
+const historialPedido = new Set();
+async function recuperarAutores(chatId) {
+  if (!listo || !socket || !chatId.endsWith('@g.us') || historialPedido.has(chatId)) return false;
+  const lista = mensajesStore.get(chatId) || [];
+  const sinAutor = lista.filter(m => !m.fromMe && !m.autorId).length;
+  if (!sinAutor) return false;
+  const ancla = lista[lista.length - 1];
+  historialPedido.add(chatId);
+  try {
+    await socket.fetchMessageHistory(Math.min(100, lista.length), { remoteJid: chatId, id: ancla.id, fromMe: !!ancla.fromMe }, ancla.ts);
+    log(`Pedido historial de ${chatId} para recuperar autores de ${sinAutor} mensajes`);
+    return true;
+  } catch (e) {
+    log(`No se pudo pedir historial de ${chatId}: ${e.message?.slice(0, 80)}`);
+    return false;
+  }
+}
+
+function avisarAutoresNuevos() {
+  for (const chatId of chatsConAutorNuevo) emitir({ tipo: 'mensajes_actualizados', chatId });
+  chatsConAutorNuevo.clear();
 }
 
 // Mensajes con el autor resuelto en el momento de leerlos (los nombres pueden llegar después)
@@ -606,11 +632,17 @@ async function guardarMensaje(msg, { descargarMedia = true, emitirSSE = true } =
 
   if (!mensajesStore.has(chatId)) mensajesStore.set(chatId, []);
   const lista = mensajesStore.get(chatId);
-  if (!lista.find(x => x.id === msgObj.id)) {
+  const existente = lista.find(x => x.id === msgObj.id);
+  if (!existente) {
     const ultimo = lista[lista.length - 1];
     lista.push(msgObj);
     if (ultimo && msgObj.ts < ultimo.ts) lista.sort((a, b) => a.ts - b.ts);
     if (lista.length > MAX_MSGS_POR_CHAT) lista.shift();
+  } else if (!existente.fromMe && !existente.autorId && msgObj.autorId) {
+    // Copia guardada por una versión anterior sin autor: completarla con lo que trae WhatsApp
+    Object.assign(existente, { autorId: msgObj.autorId, autorPush: msgObj.autorPush, autor: msgObj.autor });
+    if (!existente.mediaTipo && msgObj.mediaTipo) existente.mediaTipo = msgObj.mediaTipo;
+    chatsConAutorNuevo.add(chatId);
   }
 
   const ultimoTexto = texto || (
@@ -733,7 +765,8 @@ async function inicializar() {
   socket.ev.on('group-participants.update', ({ id }) => metaGrupos.delete(normJid(id)));
 
   // Carga masiva: contactos + chats + mensajes históricos (llega en varios lotes)
-  socket.ev.on('messaging-history.set', async ({ contacts = [], chats = [], messages = [], lidPnMappings = [], progress }) => {
+  socket.ev.on('messaging-history.set', async ({ contacts = [], chats = [], messages = [], lidPnMappings = [], progress, syncType }) => {
+    const bajoDemanda = syncType === proto.HistorySync.HistorySyncType.ON_DEMAND;
     for (const mp of lidPnMappings) setLidPn(mp.lid, mp.pn);
     for (const c of contacts) procesarContacto(c);
     for (const c of chats) {
@@ -743,17 +776,18 @@ async function inicializar() {
     const total = messages.length;
     const pctWA = typeof progress === 'number' ? Math.min(100, Math.max(0, Math.round(progress))) : null;
     log(`Historial recibido: ${total} mensajes, ${contacts.length} contactos (progreso WhatsApp: ${pctWA ?? '—'}%)`);
-    setSync({ fase: 'historial', texto: 'Sincronizando historial de chats', procesados: 0, total, pct: pctWA });
+    if (!bajoDemanda) setSync({ fase: 'historial', texto: 'Sincronizando historial de chats', procesados: 0, total, pct: pctWA });
 
     for (let i = 0; i < total; i++) {
       try { await guardarMensaje(messages[i], { descargarMedia: false, emitirSSE: false }); } catch (_) {}
       if ((i + 1) % 100 === 0) {
-        setSync({ procesados: i + 1 });
+        if (!bajoDemanda) setSync({ procesados: i + 1 });
         await esperar(0); // ceder el event loop para no congelar la conexión
       }
     }
+    avisarAutoresNuevos();
     emitir({ tipo: 'nombres' });
-    programarResolucion();
+    if (!bajoDemanda) programarResolucion();
   });
 
   socket.ev.on('contacts.upsert', (contacts) => { for (const c of contacts) procesarContacto(c); });

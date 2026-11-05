@@ -4066,6 +4066,7 @@ function _beginIntroAnimation(scr, _au) {
       else if (data.tipo === 'sync') onSync(data);
       else if (data.tipo === 'nombres') programarRecargaChats();
       else if (data.tipo === 'presencia') onPresenciaSSE(data);
+      else if (data.tipo === 'mensajes_actualizados' && data.chatId === _chatActual) cargarMensajesChat(data.chatId, true);
     };
     _sseConn.onerror = () => {
       _setSseDot(false);
@@ -4487,8 +4488,9 @@ function _beginIntroAnimation(scr, _au) {
   });
 
   // ── Mensajes ──
-  async function cargarMensajesChat(chatId) {
+  async function cargarMensajesChat(chatId, mantenerPosicion = false) {
     const area = document.getElementById('chat-mensajes-area');
+    const desdeAbajo = area.scrollHeight - area.scrollTop;
     try {
       const r = await fetch(`/api/chat/mensajes/${encodeURIComponent(chatId)}`);
       const msgs = await r.json();
@@ -4502,7 +4504,7 @@ function _beginIntroAnimation(scr, _au) {
         return;
       }
       msgs.forEach(m => appendMensajeBurbuja(m, false));
-      area.scrollTop = area.scrollHeight;
+      area.scrollTop = mantenerPosicion ? area.scrollHeight - desdeAbajo : area.scrollHeight;
     } catch (_) {
       area.innerHTML = '<div class="day-sep" style="position:static;color:var(--danger)">No se pudieron cargar los mensajes</div>';
     }

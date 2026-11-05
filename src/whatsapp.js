@@ -137,7 +137,7 @@ function procesarContacto(c) {
   guardarContactosCache();
 }
 
-async function guardarMensaje(msg) {
+async function guardarMensaje(msg, { descargarMedia = true } = {}) {
   const chatId = msg.key.remoteJid;
   if (!chatId || chatId === 'status@broadcast') return;
   const m = msg.message || {};
@@ -182,7 +182,7 @@ async function guardarMensaje(msg) {
   const tieneAudio  = !!mc.audioMessage;
   const tieneDoc    = !!mc.documentMessage;
 
-  if (tieneImagen || tieneVideo || tieneDoc || tieneAudio) {
+  if (descargarMedia && (tieneImagen || tieneVideo || tieneDoc || tieneAudio)) {
     try {
       if (!fs.existsSync(CHAT_MEDIA_DIR)) fs.mkdirSync(CHAT_MEDIA_DIR, { recursive: true });
       const msgDownload = (mc !== m) ? { ...msg, message: mc } : msg;
@@ -335,11 +335,11 @@ async function inicializar() {
     guardarContactosCache();
     log(`Contactos tras historial: ${contactosCache.size}`);
 
-    // Guardar mensajes históricos que llegan al conectar (syncFullHistory)
+    // Guardar mensajes históricos SIN descargar medios (evita bloquear la conexión)
     if (messages.length > 0) {
       log(`Procesando ${messages.length} mensajes históricos de WhatsApp...`);
       for (const msg of messages) {
-        try { await guardarMensaje(msg); } catch (_) {}
+        try { await guardarMensaje(msg, { descargarMedia: false }); } catch (_) {}
       }
       log(`Historial cargado: ${mensajesStore.size} chats en memoria`);
     }

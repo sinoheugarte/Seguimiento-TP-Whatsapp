@@ -4217,7 +4217,19 @@ function _beginIntroAnimation(scr, _au) {
 
   // ── Avatares: foto real o iniciales con color, como WhatsApp ──
   const _COLORES = [['#3d1f24','#ff8a8a'],['#3a2133','#f088c8'],['#16343a','#5ad2e0'],['#1f2f45','#7ab8ff'],['#352b16','#f5b84a'],['#2b2246','#b49cff'],['#163824','#4fd38a']];
-  const _COLORES_AUTOR = ['#06cf9c','#53bdeb','#ff7eb6','#ffd279','#a5b337','#ff8a8c','#a791ff','#02a698','#d88deb','#fd9a4d'];
+  const _COLORES_AUTOR = ['#fc9775','#53bdeb','#06cf9c','#ff72a1','#ffd279','#a791ff','#a5b337','#ff8a8c','#02a698','#d88deb',
+    '#fd9a4d','#7cc7ff','#e2b33a','#5fd4b0','#f07ac5','#c4a6ff','#9ccc65','#ffab91','#4dd0e1','#f48fb1'];
+  // Color por integrante: estable (según su ID) y sin repetir dentro del mismo chat mientras alcance la paleta
+  const _coloresChat = new Map();
+  function _colorAutor(autorId) {
+    if (_coloresChat.has(autorId)) return _coloresChat.get(autorId);
+    const usados = new Set(_coloresChat.values());
+    const n = _COLORES_AUTOR.length;
+    let i = _hash(autorId) % n;
+    for (let k = 0; k < n && usados.has(_COLORES_AUTOR[i]); k++) i = (i + 1) % n;
+    _coloresChat.set(autorId, _COLORES_AUTOR[i]);
+    return _COLORES_AUTOR[i];
+  }
   function _hash(s) { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.codePointAt(0)) | 0; return Math.abs(h); }
   function _iniciales(nombre) {
     const limpio = String(nombre || '').replace(/^~\s*/, '').trim();
@@ -4504,6 +4516,7 @@ function _beginIntroAnimation(scr, _au) {
       if (_chatActual !== chatId) return;
       area.innerHTML = '';
       _ultimoMsgRender = null;
+      _coloresChat.clear();
       _pendientesAbajo = 0;
       _actualizarJump();
       if (!msgs.length) {
@@ -4589,7 +4602,7 @@ function _beginIntroAnimation(scr, _au) {
     const esGrupo = (msg.chatId || _chatActual || '').endsWith('@g.us');
     const hora = new Date(ts).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
     const grp = esGrupo && !msg.fromMe;
-    const color = _COLORES_AUTOR[_hash(autorId) % _COLORES_AUTOR.length];
+    const color = grp ? _colorAutor(autorId) : '';
     const autorHtml = (grp && !continua && msg.autor)
       ? `<div class="msg-autor-row"><div class="msg-autor" style="color:${color}">${escHtml(msg.autor)}</div>${msg.autorAlias ? `<span class="msg-alias">~ ${escHtml(msg.autorAlias)}</span>` : ''}</div>` : '';
     const fotoAutor = (grp && !continua && msg.autorId)

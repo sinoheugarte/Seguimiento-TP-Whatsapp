@@ -3,6 +3,7 @@ const qrcode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
 const P = require('pino');
+const { execFile } = require('child_process');
 const { procesarMensaje } = require('./agent');
 
 const CONFIG_PATH = path.resolve(__dirname, '../config.json');
@@ -438,6 +439,8 @@ async function guardarMensaje(msg, { descargarMedia = true, emitirSSE = true } =
     else if (mc.contactsArrayMessage)  texto = '👥 Contactos compartidos';
     else if (mc.pollCreationMessage)   texto = `📊 Encuesta: ${mc.pollCreationMessage.name || ''}`;
     else if (mc.pollCreationMessageV3) texto = `📊 Encuesta: ${mc.pollCreationMessageV3.name || ''}`;
+    else if (mc.eventMessage)          texto = `📅 Evento: ${mc.eventMessage.name || ''}`;
+    else if (mc.pollCreationMessageV2) texto = `📊 Encuesta: ${mc.pollCreationMessageV2.name || ''}`;
     else if (mc.groupInviteMessage)    texto = `👥 Invitación al grupo: ${mc.groupInviteMessage.groupName || 'grupo'}`;
     else if (mc.buttonsMessage)        texto = mc.buttonsMessage.contentText || mc.buttonsMessage.headerText || '[Mensaje con botones]';
     else if (mc.listMessage)           texto = mc.listMessage.description || mc.listMessage.title || '[Lista]';
@@ -796,6 +799,94 @@ async function enviarMensaje(chatId, texto, archivos = []) {
   }
 }
 
+// ── Envíos desde el chat en vivo ────────────────────────────────────────────
+
+let FFMPEG = null;
+try { FFMPEG = require('ffmpeg-static'); } catch (_) {}
+
+function ffmpeg(args) {
+  return new Promise((resolve, reject) => {
+    if (!FFMPEG) return reject(new Error('Falta ffmpeg: ejecuta "npm install" en la carpeta del proyecto'));
+    execFile(FFMPEG, ['-loglevel', 'error', '-y', ...args], { timeout: 60000, windowsHide: true },
+      (err) => err ? reject(new Error('No se pudo convertir el archivo: ' + err.message.slice(0, 120))) : resolve());
+  });
+}
+
+function borrarSilencioso(ruta) { try { fs.unlinkSync(ruta); } catch (_) {} }
+
+// tipo: 'auto' (según extensión) | 'documento' | 'ptt' (nota de voz) | 'sticker'
+async function enviarChat(chatId, { texto = '', ruta = null, nombre = '', tipo = 'auto' } = {}) {
+  if (!listo) throw new Error('WhatsApp no esta conectado');
+  if (!ruta) { await socket.sendMessage(chatId, { text: texto }); return; }
+
+  if (tipo === 'ptt') {
+    const salida = `${ruta}.ogg`;
+    try {
+      await ffmpeg(['-i', ruta, '-vn', '-c:a', 'libopus', '-b:a', '32k', '-ac', '1', '-ar', '48000', salida]);
+      await socket.sendMessage(chatId, { audio: fs.readFileSync(salida), mimetype: 'audio/ogg; codecs=opus', ptt: true });
+    } finally { borrarSilencioso(salida); }
+    return;
+  }
+
+  if (tipo === 'sticker') {
+    const salida = `${ruta}.webp`;
+    try {
+      await ffmpeg(['-i', ruta, '-frames:v', '1', '-vf',
+        'scale=512:512:force_original_aspect_ratio=decrease,format=rgba,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=0x00000000',
+        '-c:v', 'libwebp', '-q:v', '80', salida]);
+      await socket.sendMessage(chatId, { sticker: fs.readFileSync(salida) });
+    } finally { borrarSilencioso(salida); }
+    return;
+  }
+
+  const buffer = fs.readFileSync(ruta);
+  const nombreArchivo = nombre || path.basename(ruta);
+  const mime = getMime(nombreArchivo);
+  if (tipo === 'documento') {
+    await socket.sendMessage(chatId, { document: buffer, mimetype: mime, fileName: nombreArchivo, caption: texto });
+  } else if (esImagen(nombreArchivo)) {
+    await socket.sendMessage(chatId, { image: buffer, caption: texto, mimetype: mime });
+  } else if (esVideo(nombreArchivo)) {
+    await socket.sendMessage(chatId, { video: buffer, caption: texto, mimetype: mime });
+  } else if (esAudio(nombreArchivo)) {
+    await socket.sendMessage(chatId, { audio: buffer, mimetype: mime, ptt: false });
+    if (texto) await socket.sendMessage(chatId, { text: texto });
+  } else {
+    await socket.sendMessage(chatId, { document: buffer, mimetype: mime, fileName: nombreArchivo, caption: texto });
+  }
+}
+
+async function enviarContacto(chatId, nombre, numero) {
+  if (!listo) throw new Error('WhatsApp no esta conectado');
+  const d = String(numero || '').replace(/\D/g, '');
+  if (d.length < 6) throw new Error('Número de contacto inválido');
+  const n = String(nombre || `+${d}`).replace(/[\r\n;]/g, ' ').trim();
+  const vcard = `BEGIN:VCARD\nVERSION:3.0\nFN:${n}\nTEL;type=CELL;type=VOICE;waid=${d}:+${d}\nEND:VCARD`;
+  await socket.sendMessage(chatId, { contacts: { displayName: n, contacts: [{ vcard }] } });
+}
+
+async function enviarEncuesta(chatId, pregunta, opciones, multiple) {
+  if (!listo) throw new Error('WhatsApp no esta conectado');
+  const values = [...new Set((opciones || []).map(o => String(o).trim()).filter(Boolean))].slice(0, 12);
+  if (!String(pregunta || '').trim() || values.length < 2) throw new Error('La encuesta necesita una pregunta y al menos 2 opciones');
+  await socket.sendMessage(chatId, { poll: { name: String(pregunta).trim(), values, selectableCount: multiple ? 0 : 1 } });
+}
+
+async function enviarEvento(chatId, { nombre, descripcion, inicio, fin, ubicacion }) {
+  if (!listo) throw new Error('WhatsApp no esta conectado');
+  const startDate = new Date(inicio);
+  if (!String(nombre || '').trim() || isNaN(startDate)) throw new Error('El evento necesita nombre y fecha de inicio');
+  const endDate = fin ? new Date(fin) : undefined;
+  await socket.sendMessage(chatId, { event: {
+    name: String(nombre).trim(),
+    description: String(descripcion || '').trim() || undefined,
+    startDate,
+    endDate: endDate && !isNaN(endDate) ? endDate : undefined,
+    location: ubicacion ? { name: String(ubicacion).trim() } : undefined,
+    extraGuestsAllowed: false
+  } });
+}
+
 function ordenarAlf(arr) {
   return arr.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es', { sensitivity: 'base' }));
 }
@@ -858,5 +949,6 @@ async function cerrarSesion() {
 module.exports = {
   inicializar, enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion,
   getMensajesStore: () => mensajesStore, getChatsRecientes, listarChats, setSseBroadcast,
-  setHandoff, isHandoff, getSyncEstado, obtenerFotoPerfil
+  setHandoff, isHandoff, getSyncEstado, obtenerFotoPerfil,
+  enviarChat, enviarContacto, enviarEncuesta, enviarEvento
 };

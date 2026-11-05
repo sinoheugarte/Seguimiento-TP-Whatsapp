@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion, getMensajesStore, listarChats, setSseBroadcast, setHandoff, isHandoff, getSyncEstado, obtenerFotoPerfil } = require('./whatsapp');
+const { enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion, getMensajesStore, listarChats, setSseBroadcast, setHandoff, isHandoff, getSyncEstado, obtenerFotoPerfil, enviarChat, enviarContacto, enviarEncuesta, enviarEvento } = require('./whatsapp');
 const qrcode = require('qrcode');
 const { enviarCorreo } = require('./email');
 const { ejecutarProgramacion, iniciarProgramaciones, detenerTodo } = require('./scheduler');
@@ -386,17 +386,40 @@ app.get('/api/chat/mensajes/:chatId', (req, res) => {
   res.json(msgs);
 });
 
-const chatUpload = multer({ dest: 'media/' });
+const chatUpload = multer({ dest: 'media/', limits: { fileSize: 100 * 1024 * 1024 } });
+const TIPOS_CHAT = ['auto', 'documento', 'ptt', 'sticker'];
 app.post('/api/chat/enviar', chatUpload.single('archivo'), async (req, res) => {
-  const chatId = req.body.chatId;
+  const { chatId } = req.body;
   const texto = req.body.texto || '';
+  const tipo = TIPOS_CHAT.includes(req.body.tipo) ? req.body.tipo : 'auto';
   if (!chatId) return res.status(400).json({ error: 'chatId es requerido' });
   if (!texto && !req.file) return res.status(400).json({ error: 'texto o archivo son requeridos' });
   try {
-    const archivos = req.file ? procesarArchivos([req.file]) : [];
-    await enviarMensaje(chatId, texto, archivos);
+    const [archivo] = req.file ? procesarArchivos([req.file]) : [];
+    await enviarChat(chatId, { texto, tipo, ruta: archivo ? path.resolve('media', archivo) : null, nombre: archivo || '' });
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/chat/contacto', async (req, res) => {
+  const { chatId, nombre, numero } = req.body || {};
+  if (!chatId) return res.status(400).json({ error: 'chatId es requerido' });
+  try { await enviarContacto(chatId, nombre, numero); res.json({ ok: true }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/chat/encuesta', async (req, res) => {
+  const { chatId, pregunta, opciones, multiple } = req.body || {};
+  if (!chatId) return res.status(400).json({ error: 'chatId es requerido' });
+  try { await enviarEncuesta(chatId, pregunta, opciones, !!multiple); res.json({ ok: true }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/chat/evento', async (req, res) => {
+  const { chatId, ...evento } = req.body || {};
+  if (!chatId) return res.status(400).json({ error: 'chatId es requerido' });
+  try { await enviarEvento(chatId, evento); res.json({ ok: true }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 function iniciar(puerto) {

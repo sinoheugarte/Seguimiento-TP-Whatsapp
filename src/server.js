@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion, getMensajesStore, getChatsRecientes, setSseBroadcast } = require('./whatsapp');
+const { enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion, getMensajesStore, getChatsRecientes, setSseBroadcast, setHandoff, isHandoff } = require('./whatsapp');
 const qrcode = require('qrcode');
 const { enviarCorreo } = require('./email');
 const { ejecutarProgramacion, iniciarProgramaciones, detenerTodo } = require('./scheduler');
@@ -330,6 +330,18 @@ app.post('/api/agente/limpiar-historial', (req, res) => {
     limpiarHistorial(req.body?.chatId || null);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Chat en Vivo — Handoff ────────────────────────────────────────────────────
+app.post('/api/chat/handoff', (req, res) => {
+  const { chatId, activo } = req.body;
+  if (!chatId) return res.status(400).json({ error: 'chatId requerido' });
+  setHandoff(chatId, !!activo);
+  res.json({ ok: true, chatId, activo: !!activo });
+});
+
+app.get('/api/chat/handoff/:chatId', (req, res) => {
+  res.json({ activo: isHandoff(req.params.chatId) });
 });
 
 // ── Chat en Vivo ──────────────────────────────────────────────────────────────

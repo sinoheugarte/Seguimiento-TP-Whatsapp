@@ -18,9 +18,17 @@ let _reconectarIntentos = 0;
 
 const mensajesStore = new Map(); // chatId -> Message[]
 const chatsRecientes = new Map(); // chatId -> {chatId, nombre, ultimo, ts, esGrupo}
+const handoffChats = new Set(); // chatIds bajo control humano (bot pausado)
 const MAX_MSGS_POR_CHAT = 500;
 let _sseBroadcast = null;
 function setSseBroadcast(fn) { _sseBroadcast = fn; }
+
+function setHandoff(chatId, activo) {
+  if (activo) handoffChats.add(chatId);
+  else handoffChats.delete(chatId);
+  if (_sseBroadcast) _sseBroadcast({ tipo: 'handoff', chatId, activo });
+}
+function isHandoff(chatId) { return handoffChats.has(chatId); }
 
 const AUTH_DIR = path.resolve('.baileys_auth');
 const CONTACTS_FILE = path.resolve('.baileys_auth', 'contacts-cache.json');
@@ -229,6 +237,7 @@ async function guardarMensaje(msg) {
   chatsRecientes.set(chatId, { chatId, nombre, ultimo: ultimoTexto, ts, esGrupo: chatId.endsWith('@g.us') });
   if (_sseBroadcast) _sseBroadcast({ tipo: 'mensaje', ...msgObj, chatNombre: nombre });
   guardarMensajesCache();
+  return msgObj;
 }
 
 async function inicializar() {
@@ -363,46 +372,80 @@ async function inicializar() {
     }
   });
 
+  // Palabras clave que activan el handoff humano
+  const PALABRAS_HANDOFF = ['hablar con humano', 'hablar con una persona', 'quiero hablar con alguien',
+    'necesito hablar con alguien', 'asesor', 'agente humano', 'persona real'];
+
   // Agente IA: responder mensajes entrantes
   socket.ev.on('messages.upsert', async ({ messages, type }) => {
     for (const msg of messages) {
       if (!msg.message) continue;
-      // Guardar en store para chat en vivo (tanto notify=entrantes como append=enviados/historial)
-      guardarMensaje(msg);
+      // Guardar en store (await para poder usar mediaPath del resultado)
+      const msgObj = await guardarMensaje(msg);
 
       if (type !== 'notify') continue; // El agente IA solo procesa mensajes en tiempo real
+      if (msg.key.fromMe) {
+        // Solo procesar mensajes propios si empiezan con el prefijo configurado
+        const chatId = msg.key.remoteJid;
+        const textoRaw = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
+        const { agente } = leerConfig();
+        const prefijo = agente?.prefijoActivacion?.trim();
+        if (!prefijo || !textoRaw.trimStart().toLowerCase().startsWith(prefijo.toLowerCase())) continue;
+        const texto = textoRaw.trimStart().slice(prefijo.length).trim();
+        if (!texto || !chatId) continue;
+        log(`Mensaje propio con prefijo "${prefijo}" detectado en ${chatId}`);
+        const chatIdFiltro = resolverLid(chatId);
+        try {
+          const respuesta = await procesarMensaje(chatIdFiltro, texto);
+          if (respuesta) await socket.sendMessage(chatId, { text: respuesta });
+        } catch (err) { console.error('[Agente] Error procesando mensaje propio:', err.message); }
+        continue;
+      }
 
       const chatId = msg.key.remoteJid;
       if (!chatId) continue;
+
+      // Registrar @lid en caché usando pushName del mensaje (si aún no está)
+      if (chatId.endsWith('@lid') && msg.pushName && !contactosCache.has(chatId)) {
+        contactosCache.set(chatId, msg.pushName);
+        guardarContactosCache();
+        log(`Contacto @lid registrado: ${chatId} → ${msg.pushName}`);
+      }
+
       const textoRaw = msg.message.conversation ||
         msg.message.extendedTextMessage?.text ||
         msg.message.imageMessage?.caption ||
         msg.message.videoMessage?.caption || '';
-      if (!textoRaw.trim()) continue;
 
-      let texto = textoRaw;
+      // Detectar solicitud de handoff humano
+      const textoLower = textoRaw.toLowerCase();
+      if (PALABRAS_HANDOFF.some(p => textoLower.includes(p))) {
+        setHandoff(chatId, true);
+        await socket.sendMessage(chatId, { text: 'En un momento un asesor se comunicará con usted. Por favor espere.' });
+        log(`[Handoff] Chat ${chatId} transferido a atención humana por solicitud del cliente`);
+        continue;
+      }
 
-      if (msg.key.fromMe) {
-        // Solo procesar mensajes propios si empiezan con el prefijo configurado
-        const { agente } = leerConfig();
-        const prefijo = agente?.prefijoActivacion?.trim();
-        if (!prefijo || !textoRaw.trimStart().toLowerCase().startsWith(prefijo.toLowerCase())) continue;
-        texto = textoRaw.trimStart().slice(prefijo.length).trim();
-        if (!texto) continue;
-        log(`Mensaje propio con prefijo "${prefijo}" detectado en ${chatId}`);
-      } else {
-        // Registrar @lid en caché usando pushName del mensaje (si aún no está)
-        if (chatId.endsWith('@lid') && msg.pushName && !contactosCache.has(chatId)) {
-          contactosCache.set(chatId, msg.pushName);
-          guardarContactosCache();
-          log(`Contacto @lid registrado: ${chatId} → ${msg.pushName}`);
-        }
+      // Si el chat está en modo handoff, el bot no responde
+      if (isHandoff(chatId)) {
+        log(`[Handoff] Mensaje ignorado por bot en ${chatId} (atención humana activa)`);
+        continue;
       }
 
       // Normalizar @lid → @s.whatsapp.net para que coincida con el filtro guardado
       const chatIdFiltro = resolverLid(chatId);
+
+      // Preparar imagen para visión si el mensaje trae una
+      let imagenPath = null;
+      if (msgObj?.mediaTipo === 'imagen' && msgObj?.mediaPath) {
+        imagenPath = path.resolve(__dirname, '..', 'public', msgObj.mediaPath.replace(/^\//, ''));
+      }
+
+      // Si no hay texto ni imagen, no hay nada que procesar
+      if (!textoRaw.trim() && !imagenPath) continue;
+
       try {
-        const respuesta = await procesarMensaje(chatIdFiltro, texto);
+        const respuesta = await procesarMensaje(chatIdFiltro, textoRaw || '[imagen]', imagenPath);
         if (respuesta) await socket.sendMessage(chatId, { text: respuesta });
       } catch (err) {
         console.error('[Agente] Error procesando mensaje:', err.message);
@@ -519,7 +562,7 @@ async function cerrarSesion() {
   setTimeout(inicializar, 1500);
 }
 
-module.exports = { inicializar, enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion, getMensajesStore: () => mensajesStore, getChatsRecientes, setSseBroadcast };
+module.exports = { inicializar, enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion, getMensajesStore: () => mensajesStore, getChatsRecientes, setSseBroadcast, setHandoff, isHandoff };
 
 function getChatsRecientes() {
   // Re-resolver nombres en cada consulta usando el cache actual (puede haber llegado después del primer mensaje)

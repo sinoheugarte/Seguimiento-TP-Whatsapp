@@ -1,6 +1,8 @@
 const path = require('path');
 const fs = require('fs');
 
+const MIME_VISION = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp' };
+
 const KNOWLEDGE_DIR = path.resolve('knowledge');
 const CONFIG_PATH = path.resolve(__dirname, '../config.json');
 const conversationHistory = new Map();
@@ -81,14 +83,35 @@ async function buildSystemPrompt(agente) {
   ].filter(Boolean).join('\n');
 }
 
-async function llamarAnthropic(agente, systemPrompt, history) {
+async function llamarAnthropic(agente, systemPrompt, history, imagenPath = null) {
   const Anthropic = require('@anthropic-ai/sdk');
   const client = new Anthropic({ apiKey: agente.apiKey });
+
+  let messages = [...history];
+
+  // Visión: si el último mensaje lleva imagen, enriquecerlo con contenido multimodal
+  if (imagenPath && fs.existsSync(imagenPath)) {
+    const ext = path.extname(imagenPath).slice(1).toLowerCase();
+    const mimeType = MIME_VISION[ext] || 'image/jpeg';
+    const imageData = fs.readFileSync(imagenPath).toString('base64');
+    const lastUser = messages[messages.length - 1];
+    messages = [
+      ...messages.slice(0, -1),
+      {
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mimeType, data: imageData } },
+          { type: 'text', text: lastUser.content || 'Describe esta imagen y responde según el contexto del negocio.' }
+        ]
+      }
+    ];
+  }
+
   const response = await client.messages.create({
     model: agente.modelo || 'claude-haiku-5-5',
     max_tokens: 1024,
     system: systemPrompt,
-    messages: [...history]
+    messages
   });
   return response.content[0].text;
 }
@@ -135,7 +158,7 @@ function permitirLidSinMapeo(chatId, filtros) {
   return false;
 }
 
-async function procesarMensaje(chatId, texto) {
+async function procesarMensaje(chatId, texto, imagenPath = null) {
   const config = leerConfig();
   const agente = config.agente;
   if (!agente?.activo) return null;
@@ -206,7 +229,7 @@ async function procesarMensaje(chatId, texto) {
     let respuesta;
     if (proveedor === 'gemini') respuesta = await llamarGemini(agenteConKey, systemPrompt, history);
     else if (proveedor === 'groq') respuesta = await llamarGroq(agenteConKey, systemPrompt, history);
-    else respuesta = await llamarAnthropic(agenteConKey, systemPrompt, history);
+    else respuesta = await llamarAnthropic(agenteConKey, systemPrompt, history, imagenPath);
     history.push({ role: 'assistant', content: respuesta });
     console.log(`[Agente] Respondido (${proveedor}) → ${chatId}`);
     return respuesta;

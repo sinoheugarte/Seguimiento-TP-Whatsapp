@@ -199,20 +199,21 @@ function resolverLid(chatId) {
 }
 
 // Mejor nombre conocido para un jid, combinando su forma @lid y @s.whatsapp.net
-function nombreDe(jid) {
+function nombreYPrio(jid) {
   jid = normJid(jid);
-  if (!jid) return '';
-  if (jid.endsWith('@g.us')) return gruposNombres.get(jid) || '';
+  if (!jid) return { nombre: '', prio: 0 };
+  if (jid.endsWith('@g.us')) return { nombre: gruposNombres.get(jid) || '', prio: 3 };
   const pn = jid.endsWith('@lid') ? lidToJid.get(jid) : jid;
   const lid = jid.endsWith('@lid') ? jid : jidToLid.get(jid);
-  let mejor = '', mejorPrio = 0;
+  let nombre = '', prio = 0;
   for (const j of [pn, lid]) {
     if (!j || !contactosCache.has(j)) continue;
     const p = contactosPrio.get(j) || 1;
-    if (p > mejorPrio) { mejor = contactosCache.get(j); mejorPrio = p; }
+    if (p > prio) { nombre = contactosCache.get(j); prio = p; }
   }
-  return mejor;
+  return { nombre, prio };
 }
+function nombreDe(jid) { return nombreYPrio(jid).nombre; }
 
 function formatearNumero(pnJid) {
   const d = String(pnJid || '').split('@')[0].split(':')[0].replace(/\D/g, '');
@@ -234,6 +235,22 @@ function etiquetaChat(chatId, pushName) {
   if (chatId.endsWith('@g.us')) return 'Grupo';
   if (chatId.endsWith('@newsletter')) return 'Canal';
   return numeroDe(chatId) || (pushName ? `~ ${pushName}` : chatId.split('@')[0]);
+}
+
+function esYo(jid) {
+  const u = socket?.user;
+  if (!u || !jid) return false;
+  const j = normJid(jid);
+  return j === normJid(u.id) || (!!u.lid && j === normJid(u.lid));
+}
+
+function autorInfo(jid, push = '') {
+  const { nombre, prio } = nombreYPrio(jid);
+  const numero = numeroDe(jid);
+  const alias = push || (prio < 3 ? nombre : '');
+  if (prio >= 2 && nombre) return { autor: nombre, autorAlias: '', autorFotoV: versionFoto(jid) };
+  if (numero) return { autor: numero, autorAlias: alias && alias !== numero ? alias : '', autorFotoV: versionFoto(jid) };
+  return { autor: `~ ${alias || String(jid || '').split('@')[0]}`, autorAlias: '', autorFotoV: versionFoto(jid) };
 }
 
 function procesarContacto(c) {
@@ -407,6 +424,96 @@ function programarResolucion(ms = 2500) {
   _resolverTimer = setTimeout(() => resolverPendientes().catch(() => {}), ms);
 }
 
+// ── Presencia (en línea / escribiendo) e integrantes de grupos ──────────────
+
+const presencias = new Map(); // chatId → { participante: { estado, lastSeen, ts } }
+const metaGrupos = new Map(); // chatId → { ts, participantes: [jid] }
+const suscritos = new Map();  // chatId → ts de la última suscripción
+
+function registrarPresencia(id, presences) {
+  const chatId = normJid(id);
+  const claves = [chatId];
+  if (chatId.endsWith('@lid') && lidToJid.get(chatId)) claves.push(lidToJid.get(chatId));
+  if (chatId.endsWith('@s.whatsapp.net') && jidToLid.get(chatId)) claves.push(jidToLid.get(chatId));
+  for (const clave of claves) {
+    const actual = presencias.get(clave) || {};
+    for (const [p, d] of Object.entries(presences || {})) {
+      const pj = normJid(p);
+      if (esYo(pj)) continue;
+      const previo = actual[pj] || {};
+      actual[pj] = { estado: d.lastKnownPresence, lastSeen: d.lastSeen ? d.lastSeen * 1000 : (previo.lastSeen || null), ts: Date.now() };
+    }
+    presencias.set(clave, actual);
+    emitir({ tipo: 'presencia', chatId: clave, presencia: resumenPresencia(clave) });
+  }
+}
+
+function nombreCorto(jid) {
+  const { nombre, prio } = nombreYPrio(jid);
+  if (prio >= 2 && nombre) return nombre.split(/\s+/)[0];
+  return numeroDe(jid) || (nombre ? `~${nombre}` : String(jid).split('@')[0]);
+}
+
+function resumenPresencia(chatId) {
+  const datos = presencias.get(chatId) || {};
+  if (chatId.endsWith('@g.us')) {
+    const activos = Object.entries(datos)
+      .filter(([, d]) => (d.estado === 'composing' || d.estado === 'recording') && Date.now() - d.ts < 25000)
+      .map(([jid, d]) => ({ nombre: nombreCorto(jid), estado: d.estado, ts: d.ts }));
+    return { activos };
+  }
+  let mejor = null;
+  for (const d of Object.values(datos)) if (!mejor || d.ts > mejor.ts) mejor = d;
+  return mejor ? { estado: mejor.estado, lastSeen: mejor.lastSeen, ts: mejor.ts } : null;
+}
+
+async function infoChat(chatId) {
+  chatId = normJid(chatId);
+  if (listo && socket && Date.now() - (suscritos.get(chatId) || 0) > 4 * 60e3) {
+    suscritos.set(chatId, Date.now());
+    socket.presenceSubscribe(chatId).catch(() => {});
+  }
+  const info = { chatId, presencia: resumenPresencia(chatId) };
+  if (!chatId.endsWith('@g.us')) return info;
+  let m = metaGrupos.get(chatId);
+  if (listo && socket && (!m || Date.now() - m.ts > 10 * 60e3)) {
+    try {
+      const meta = await socket.groupMetadata(chatId);
+      if (meta?.subject) setGrupo(chatId, meta.subject);
+      for (const p of meta?.participants || []) {
+        if (p.id?.endsWith('@lid') && p.phoneNumber) setLidPn(p.id, p.phoneNumber);
+        if (p.lid && p.id?.endsWith('@s.whatsapp.net')) setLidPn(p.lid, p.id);
+      }
+      m = { ts: Date.now(), participantes: (meta?.participants || []).map(p => normJid(p.id)) };
+      metaGrupos.set(chatId, m);
+    } catch (_) {}
+  }
+  if (m) {
+    const lista = m.participantes.map(jid => {
+      const { nombre, prio } = nombreYPrio(jid);
+      return { jid, yo: esYo(jid), corto: nombreCorto(jid), guardado: prio >= 2 && !!nombre };
+    });
+    // Orden como WhatsApp: contactos guardados (A-Z), luego números, y "Tú" al final
+    lista.sort((a, b) => (a.yo - b.yo) || (b.guardado - a.guardado) || a.corto.localeCompare(b.corto, 'es', { sensitivity: 'base' }));
+    info.participantes = lista.map(p => (p.yo ? 'Tú' : p.corto));
+    info.totalParticipantes = lista.length;
+  }
+  return info;
+}
+
+// Mensajes con el autor resuelto en el momento de leerlos (los nombres pueden llegar después)
+function mensajesDe(chatId) {
+  const lista = mensajesStore.get(chatId) || [];
+  if (!chatId.endsWith('@g.us')) return lista;
+  const digitosGrupo = chatId.split('@')[0];
+  return lista.map(m => {
+    if (m.fromMe) return m;
+    if (!m.autorId) return m.autor === digitosGrupo ? { ...m, autor: '' } : m;
+    const push = m.autorPush ?? (m.autor && !/^[+\d\s~]/.test(m.autor) ? m.autor : '');
+    return { ...m, ...autorInfo(m.autorId, push) };
+  });
+}
+
 // ── Guardado de mensajes ─────────────────────────────────────────────────────
 
 async function guardarMensaje(msg, { descargarMedia = true, emitirSSE = true } = {}) {
@@ -491,6 +598,7 @@ async function guardarMensaje(msg, { descargarMedia = true, emitirSSE = true } =
     ts,
     autor: fromMe ? 'Tú' : (nombreDe(autorJid) || numeroDe(autorJid) || pushName || (autorJid || '').split('@')[0]),
     autorId: fromMe ? null : autorJid,
+    autorPush: pushName,
     mediaTipo,
     mediaPath,
     docNombre: mc.documentMessage?.fileName || null
@@ -524,7 +632,10 @@ async function guardarMensaje(msg, { descargarMedia = true, emitirSSE = true } =
       pushName: (!esGrupo && pushName) ? pushName : (previo?.pushName || '')
     });
   }
-  if (emitirSSE) emitir({ tipo: 'mensaje', ...msgObj, chatNombre: etiquetaChat(chatId, pushName) });
+  if (emitirSSE) {
+    const extra = esGrupo && !fromMe && autorJid ? autorInfo(autorJid, pushName) : {};
+    emitir({ tipo: 'mensaje', ...msgObj, ...extra, chatNombre: etiquetaChat(chatId, pushName) });
+  }
   guardarMensajesCache();
   return msgObj;
 }
@@ -618,6 +729,8 @@ async function inicializar() {
   socket.ev.on('groups.upsert', (grupos) => { for (const g of grupos) setGrupo(g.id, g.subject); });
   socket.ev.on('groups.update', (grupos) => { for (const g of grupos) if (g.subject) setGrupo(g.id, g.subject); });
   socket.ev.on('lid-mapping.update', ({ lid, pn }) => setLidPn(lid, pn));
+  socket.ev.on('presence.update', ({ id, presences }) => registrarPresencia(id, presences));
+  socket.ev.on('group-participants.update', ({ id }) => metaGrupos.delete(normJid(id)));
 
   // Carga masiva: contactos + chats + mensajes históricos (llega en varios lotes)
   socket.ev.on('messaging-history.set', async ({ contacts = [], chats = [], messages = [], lidPnMappings = [], progress }) => {
@@ -908,7 +1021,7 @@ function listarContactos() {
     const clave = pn || chatId;
     if (vistos.has(clave)) continue;
     vistos.add(clave);
-    lista.push({ nombre: nombreDe(clave) || nombre, chatId: clave });
+    lista.push({ nombre: nombreDe(clave) || nombre, chatId: clave, numero: numeroDe(clave) });
   }
   return ordenarAlf(lista);
 }
@@ -950,5 +1063,5 @@ module.exports = {
   inicializar, enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion,
   getMensajesStore: () => mensajesStore, getChatsRecientes, listarChats, setSseBroadcast,
   setHandoff, isHandoff, getSyncEstado, obtenerFotoPerfil,
-  enviarChat, enviarContacto, enviarEncuesta, enviarEvento
+  enviarChat, enviarContacto, enviarEncuesta, enviarEvento, infoChat, mensajesDe
 };

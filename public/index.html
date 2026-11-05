@@ -987,6 +987,17 @@
     .cam-shutter:active { transform: scale(.88); }
     .wa-modal.camara { max-width: 640px; }
 
+    /* Autor en grupos (foto + nombre) */
+    .msg-row.grp { position: relative; padding-left: 46px; }
+    .msg-av { position: absolute; left: 8px; top: 0; }
+    .msg-av .avatar { --s: 30px; font-size: 12px; }
+    .msg-autor-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; }
+    .msg-autor-row .msg-autor { min-width: 0; }
+    .msg-alias { flex: none; max-width: 50%; font-size: 12.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .conv-sub.activo, .ci-prev.escribiendo { color: var(--wa-green); }
+    .grupo-item label { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    .gi-num { font-size: .78rem; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
     /* Llamada */
     #chat-call-btn:disabled { opacity: .35; cursor: not-allowed; }
 
@@ -1218,7 +1229,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
         </button>
         <div id="chat-avatar-hdr"></div>
-        <div class="conv-title">
+        <div class="conv-title" onclick="if(_chatActual)_cargarInfoChat(_chatActual)" style="cursor:pointer">
           <div id="chat-titulo">—</div>
           <div class="conv-sub" id="chat-subtitulo"></div>
         </div>
@@ -2166,13 +2177,19 @@ function renderLista(listaId, fuente, prefijo, onchange) {
     el.innerHTML = `<div class="lista-vacia">Sin datos — presiona ↺ para recargar</div>`;
     return;
   }
-  el.innerHTML = fuente.map(g => {
-    const nombre = (g.nombre || '').trim() || '(Sin nombre)';
-    return `<div class="grupo-item" data-nombre="${nombre.toLowerCase().replace(/"/g,'&quot;')}">
-      <input type="checkbox" id="${prefijo}${g.chatId}" value="${g.chatId}" ${marcados.has(g.chatId)?'checked':''} onchange="${onchange}">
-      <label for="${prefijo}${g.chatId}">${nombre}</label>
+  el.innerHTML = fuente.map(g => _itemSeleccionHtml(g, prefijo, marcados.has(g.chatId), onchange)).join('');
+}
+
+// Fila de selección: nombre y, debajo, el número de teléfono (búsqueda por ambos)
+function _itemSeleccionHtml(g, prefijo, marcado, onchange) {
+  const nombre = (g.nombre || '').trim() || '(Sin nombre)';
+  const numero = g.numero || '';
+  const clave = `${nombre} ${numero} ${numero.replace(/\D/g, '')}`.toLowerCase();
+  const id = escHTML(prefijo + g.chatId);
+  return `<div class="grupo-item" data-nombre="${escHTML(clave)}">
+      <input type="checkbox" id="${id}" value="${escHTML(g.chatId)}" ${marcado ? 'checked' : ''} onchange="${onchange}">
+      <label for="${id}"><span>${escHTML(nombre)}</span>${numero && numero !== nombre ? `<span class="gi-num">${escHTML(numero)}</span>` : ''}</label>
     </div>`;
-  }).join('');
 }
 
 function renderizarGrupos() {
@@ -3108,14 +3125,7 @@ function renderListaConSel(listaId, fuente, prefijo, preSelected, onchange) {
     el.innerHTML = `<div class="lista-vacia">Sin datos — presiona ↺ para recargar</div>`;
     return;
   }
-  el.innerHTML = fuente.map(g => {
-    const nombre = (g.nombre || '').trim() || '(Sin nombre)';
-    const checked = marcados && marcados.has(g.chatId) ? 'checked' : '';
-    return `<div class="grupo-item" data-nombre="${nombre.toLowerCase().replace(/"/g,'&quot;')}">
-      <input type="checkbox" id="${prefijo}${g.chatId}" value="${g.chatId}" ${checked} onchange="${onchange}">
-      <label for="${prefijo}${g.chatId}">${nombre}</label>
-    </div>`;
-  }).join('');
+  el.innerHTML = fuente.map(g => _itemSeleccionHtml(g, prefijo, !!(marcados && marcados.has(g.chatId)), onchange)).join('');
 }
 
 function actualizarCuentaSelector(listaId, cuentaId) {
@@ -3539,11 +3549,7 @@ function populateFiltroLista(tipo, items, selected) {
     actualizarContadorFiltro(tipo);
     return;
   }
-  cont.innerHTML = items.map(item => `
-    <div class="grupo-item" data-nombre="${escHTML((item.nombre || item.chatId).toLowerCase())}">
-      <input type="checkbox" id="flt-${tipo}-${escHTML(item.chatId)}" value="${escHTML(item.chatId)}" ${selected.has(item.chatId) ? 'checked' : ''} onchange="actualizarContadorFiltro('${tipo}')">
-      <label for="flt-${tipo}-${escHTML(item.chatId)}">${escHTML(item.nombre || item.chatId)}</label>
-    </div>`).join('');
+  cont.innerHTML = items.map(item => _itemSeleccionHtml({ ...item, nombre: item.nombre || item.chatId }, `flt-${tipo}-`, selected.has(item.chatId), `actualizarContadorFiltro('${tipo}')`)).join('');
   actualizarContadorFiltro(tipo);
 }
 
@@ -4027,6 +4033,7 @@ function _beginIntroAnimation(scr, _au) {
       else if (data.tipo === 'handoff') onHandoffSSE(data);
       else if (data.tipo === 'sync') onSync(data);
       else if (data.tipo === 'nombres') programarRecargaChats();
+      else if (data.tipo === 'presencia') onPresenciaSSE(data);
     };
     _sseConn.onerror = () => {
       _setSseDot(false);
@@ -4242,7 +4249,7 @@ function _beginIntroAnimation(scr, _au) {
         ${avatarHtml(c)}
         <div class="ci-body">
           <div class="ci-row"><span class="ci-name">${escHtml(c.nombre)}</span><span class="ci-time">${formatearTsChat(c.ts)}</span></div>
-          <div class="ci-row"><span class="ci-prev">${check}${autor}<span>${escHtml(c.ultimo || '')}</span></span>${badge}</div>
+          <div class="ci-row">${(() => { const pr = _textoPresencia(c); return pr?.activo ? `<span class="ci-prev escribiendo"><span>${escHtml(pr.t)}</span></span>` : `<span class="ci-prev">${check}${autor}<span>${escHtml(c.ultimo || '')}</span></span>`; })()}${badge}</div>
         </div>
       </div>`;
     }).join('');
@@ -4342,13 +4349,74 @@ function _beginIntroAnimation(scr, _au) {
   function pintarCabeceraChat(chat) {
     document.getElementById('chat-avatar-hdr').innerHTML = avatarHtml(chat, 'sm');
     document.getElementById('chat-titulo').textContent = chat.nombre || chat.chatId;
-    const sub = chat.esGrupo ? 'Grupo' : (chat.numero && chat.numero !== chat.nombre ? chat.numero : 'Contacto');
-    document.getElementById('chat-subtitulo').textContent = sub;
+    _pintarSubtitulo();
     const call = document.getElementById('chat-call-btn');
     const num = _numeroChat(chat);
     call.disabled = !num;
     call.title = num ? 'Llamar (abre la app de WhatsApp)' : chat.esGrupo ? 'Llamadas no disponibles para grupos' : 'Número no disponible';
   }
+
+  // ── Presencia (en línea / escribiendo) e integrantes ──
+  let _infoChat = null;
+  const _presencias = new Map(); // chatId → resumen de presencia recibido por SSE
+
+  function _horaCorta(ts) { return new Date(ts).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }); }
+  function _ultimaVez(ts) {
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    const d = new Date(ts); const dia = new Date(ts); dia.setHours(0, 0, 0, 0);
+    const dias = Math.round((hoy - dia) / 864e5);
+    if (dias === 0) return `últ. vez hoy a las ${_horaCorta(ts)}`;
+    if (dias === 1) return `últ. vez ayer a las ${_horaCorta(ts)}`;
+    return `últ. vez el ${d.toLocaleDateString('es-PE', { day: 'numeric', month: 'short' })} a las ${_horaCorta(ts)}`;
+  }
+  const _vigente = (p) => p && Date.now() - p.ts < 25000;
+
+  function _textoPresencia(chat) {
+    const pres = _presencias.get(chat.chatId);
+    if (chat.esGrupo) {
+      const a = (pres?.activos || []).find(_vigente);
+      if (a) return { t: `${a.nombre} está ${a.estado === 'recording' ? 'grabando un audio' : 'escribiendo'}…`, activo: true };
+      return null;
+    }
+    if (_vigente(pres) && pres.estado === 'composing') return { t: 'escribiendo…', activo: true };
+    if (_vigente(pres) && pres.estado === 'recording') return { t: 'grabando audio…', activo: true };
+    if (pres?.estado === 'available') return { t: 'en línea' };
+    return null;
+  }
+
+  function _pintarSubtitulo() {
+    const el = document.getElementById('chat-subtitulo');
+    const chat = _chatsData.find(c => c.chatId === _chatActual);
+    if (!el || !chat) return;
+    const pres = _textoPresencia(chat);
+    let t;
+    if (pres) t = pres.t;
+    else if (chat.esGrupo) t = _infoChat?.chatId === chat.chatId && _infoChat.participantes?.length ? _infoChat.participantes.join(', ') : 'toca para recargar los integrantes';
+    else {
+      const p = _presencias.get(chat.chatId);
+      t = p?.lastSeen ? _ultimaVez(p.lastSeen) : (chat.numero && chat.numero !== chat.nombre ? chat.numero : 'Contacto');
+    }
+    el.textContent = t;
+    el.title = t;
+    el.classList.toggle('activo', !!pres?.activo);
+  }
+
+  async function _cargarInfoChat(chatId) {
+    try {
+      const info = await (await fetch(`/api/chat/info/${encodeURIComponent(chatId)}`)).json();
+      if (_chatActual !== chatId) return;
+      _infoChat = info;
+      if (info.presencia) _presencias.set(chatId, info.presencia);
+      _pintarSubtitulo();
+    } catch (_) {}
+  }
+
+  function onPresenciaSSE(data) {
+    _presencias.set(data.chatId, data.presencia);
+    if (data.chatId === _chatActual) _pintarSubtitulo();
+    renderChatsLista();
+  }
+  setInterval(() => { if (_chatActual) _pintarSubtitulo(); renderChatsLista(); }, 10000);
 
   async function seleccionarChat(chatId) {
     const mismo = _chatActual === chatId && _vista === 'chats';
@@ -4361,6 +4429,9 @@ function _beginIntroAnimation(scr, _au) {
     _actualizarBtnHandoff(chatId);
     _irVista('chats', true);
     if (mismo) return;
+    _infoChat = null;
+    _pintarSubtitulo();
+    _cargarInfoChat(chatId);
     cancelarGrabacion(); cerrarAdjuntos(); cerrarEmoji();
     quitarAdjunto();
     document.getElementById('chat-mensajes-area').innerHTML = '';
@@ -4467,11 +4538,15 @@ function _beginIntroAnimation(scr, _au) {
     const continua = prev && prev.dia === dia && prev.autorId === autorId && (ts - prev.ts) < 5 * 60e3;
     const esGrupo = (msg.chatId || _chatActual || '').endsWith('@g.us');
     const hora = new Date(ts).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
-    const autorHtml = (esGrupo && !msg.fromMe && !continua && msg.autor)
-      ? `<div class="msg-autor" style="color:${_COLORES_AUTOR[_hash(autorId) % _COLORES_AUTOR.length]}">${escHtml(msg.autor)}</div>` : '';
+    const grp = esGrupo && !msg.fromMe;
+    const color = _COLORES_AUTOR[_hash(autorId) % _COLORES_AUTOR.length];
+    const autorHtml = (grp && !continua && msg.autor)
+      ? `<div class="msg-autor-row"><div class="msg-autor" style="color:${color}">${escHtml(msg.autor)}</div>${msg.autorAlias ? `<span class="msg-alias">~ ${escHtml(msg.autorAlias)}</span>` : ''}</div>` : '';
+    const fotoAutor = (grp && !continua && msg.autorId)
+      ? `<div class="msg-av">${avatarHtml({ chatId: msg.autorId, nombre: msg.autorAlias || msg.autor, esGrupo: false, fotoV: msg.autorFotoV ?? null }, 'xs')}</div>` : '';
     const row = document.createElement('div');
-    row.className = `msg-row ${msg.fromMe ? 'out' : 'in'}${continua ? '' : ' first'}${animar ? ' msg-pop' : ''}`;
-    row.innerHTML = `<div class="msg-bubble ${msg.fromMe ? 'enviado' : 'recibido'}">${autorHtml}${_renderContenido(msg)}<span class="msg-ts">${hora}</span></div>`;
+    row.className = `msg-row ${msg.fromMe ? 'out' : 'in'}${grp ? ' grp' : ''}${continua ? '' : ' first'}${animar ? ' msg-pop' : ''}`;
+    row.innerHTML = `${fotoAutor}<div class="msg-bubble ${msg.fromMe ? 'enviado' : 'recibido'}">${autorHtml}${_renderContenido(msg)}<span class="msg-ts">${hora}</span></div>`;
     area.appendChild(row);
     _ultimoMsgRender = { dia, autorId, ts };
   }

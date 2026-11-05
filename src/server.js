@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion, getMensajesStore, listarChats, setSseBroadcast, setHandoff, isHandoff, getSyncEstado, obtenerFotoPerfil, enviarChat, enviarContacto, enviarEncuesta, enviarEvento } = require('./whatsapp');
+const { enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion, getMensajesStore, listarChats, setSseBroadcast, setHandoff, isHandoff, getSyncEstado, obtenerFotoPerfil, enviarChat, enviarContacto, enviarEncuesta, enviarEvento, infoChat, mensajesDe } = require('./whatsapp');
 const qrcode = require('qrcode');
 const { enviarCorreo } = require('./email');
 const { ejecutarProgramacion, iniciarProgramaciones, detenerTodo } = require('./scheduler');
@@ -382,8 +382,13 @@ app.get('/api/chat/foto/:chatId', async (req, res) => {
 });
 
 app.get('/api/chat/mensajes/:chatId', (req, res) => {
-  const msgs = getMensajesStore().get(req.params.chatId) || [];
-  res.json(msgs);
+  res.json(mensajesDe(req.params.chatId));
+});
+
+app.get('/api/chat/info/:chatId', async (req, res) => {
+  if (!JID_VALIDO.test(req.params.chatId)) return res.status(400).json({ error: 'chatId inválido' });
+  try { res.json(await infoChat(req.params.chatId)); }
+  catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 const chatUpload = multer({ dest: 'media/', limits: { fileSize: 100 * 1024 * 1024 } });

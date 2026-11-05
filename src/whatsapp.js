@@ -350,9 +350,15 @@ async function inicializar() {
 
     // Guardar mensajes históricos: sin media, sin SSE individual (evita saturar el navegador)
     if (messages.length > 0) {
-      log(`Procesando ${messages.length} mensajes históricos de WhatsApp...`);
-      for (const msg of messages) {
-        try { await guardarMensaje(msg, { descargarMedia: false, emitirSSE: false }); } catch (_) {}
+      const total = messages.length;
+      log(`Procesando ${total} mensajes históricos de WhatsApp...`);
+      if (_sseBroadcast) _sseBroadcast({ tipo: 'historial_progreso', procesados: 0, total });
+      for (let i = 0; i < messages.length; i++) {
+        try { await guardarMensaje(messages[i], { descargarMedia: false, emitirSSE: false }); } catch (_) {}
+        // Enviar progreso cada 100 mensajes para no saturar SSE
+        if (_sseBroadcast && (i + 1) % 100 === 0) {
+          _sseBroadcast({ tipo: 'historial_progreso', procesados: i + 1, total });
+        }
       }
       log(`Historial cargado: ${mensajesStore.size} chats en memoria`);
       // Un solo evento SSE para que el frontend recargue la lista

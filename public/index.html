@@ -650,6 +650,15 @@
         <button class="chat-filter-btn" id="cfb-novedades" onclick="setChatFiltro('novedades',this)">Nov.</button>
         <button class="chat-filter-btn" id="cfb-config" onclick="setChatFiltro('config',this)">Config.</button>
       </div>
+      <div id="chat-historial-banner" style="display:none;padding:8px 12px;background:rgba(0,153,255,.1);border-bottom:1px solid rgba(0,153,255,.2);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+          <span style="font-size:.72rem;color:var(--accent2);font-weight:600;">Cargando historial de WhatsApp...</span>
+          <span id="chat-historial-pct" style="font-size:.72rem;color:var(--accent2);font-weight:700;">0%</span>
+        </div>
+        <div style="background:rgba(0,153,255,.2);border-radius:4px;height:4px;overflow:hidden;">
+          <div id="chat-historial-bar" style="background:var(--accent2);height:100%;border-radius:4px;width:0%;transition:width .3s ease;"></div>
+        </div>
+      </div>
       <div id="chat-lista" class="chat-lista">
         <div class="chat-empty">
           <svg width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
@@ -3308,7 +3317,8 @@ function _beginIntroAnimation(scr, _au) {
         const data = JSON.parse(e.data);
         if (data.tipo === 'mensaje') onNuevoMensajeSSE(data);
         else if (data.tipo === 'handoff') onHandoffSSE(data);
-        else if (data.tipo === 'historial_listo') cargarChatsLista();
+        else if (data.tipo === 'historial_progreso') onHistorialProgreso(data);
+        else if (data.tipo === 'historial_listo') { onHistorialListo(); cargarChatsLista(); }
       } catch (_) {}
     };
     _sseConn.onerror = () => {
@@ -3358,6 +3368,46 @@ function _beginIntroAnimation(scr, _au) {
 
   function filtrarChats() { renderChatsLista(); }
 
+  function onHistorialProgreso(data) {
+    const banner = document.getElementById('chat-historial-banner');
+    const bar = document.getElementById('chat-historial-bar');
+    const pct = document.getElementById('chat-historial-pct');
+    if (!banner) return;
+    banner.style.display = '';
+    const p = data.total > 0 ? Math.round((data.procesados / data.total) * 100) : 0;
+    if (bar) bar.style.width = p + '%';
+    if (pct) pct.textContent = p + '%';
+  }
+
+  function onHistorialListo() {
+    const banner = document.getElementById('chat-historial-banner');
+    const bar = document.getElementById('chat-historial-bar');
+    const pct = document.getElementById('chat-historial-pct');
+    if (bar) bar.style.width = '100%';
+    if (pct) pct.textContent = '100%';
+    setTimeout(() => { if (banner) banner.style.display = 'none'; }, 1500);
+  }
+
+  function formatearTsChat(ts) {
+    if (!ts) return '';
+    const ahora = new Date();
+    const fecha = new Date(ts);
+    const hoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+    const ayer = new Date(hoy); ayer.setDate(hoy.getDate() - 1);
+    const haceSemana = new Date(hoy); haceSemana.setDate(hoy.getDate() - 6);
+    const diaFecha = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
+    if (diaFecha >= hoy) {
+      return fecha.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+    } else if (diaFecha >= ayer) {
+      return 'Ayer';
+    } else if (diaFecha >= haceSemana) {
+      const dia = fecha.toLocaleDateString('es-AR', { weekday: 'long' });
+      return dia.charAt(0).toUpperCase() + dia.slice(1);
+    } else {
+      return fecha.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    }
+  }
+
   function _esBroadcast(chatId) {
     return chatId.endsWith('@broadcast') || chatId.endsWith('@newsletter');
   }
@@ -3383,7 +3433,7 @@ function _beginIntroAnimation(scr, _au) {
       const ini = (c.nombre || '?')[0].toUpperCase();
       const tipo = c.esGrupo ? 'grupo' : 'privado';
       const activo = _chatActual === c.chatId ? ' active' : '';
-      const hora = c.ts ? new Date(c.ts).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '';
+      const hora = formatearTsChat(c.ts);
       const unread = _unreadCounts.get(c.chatId) || 0;
       const isHumano = _handoffChats.has(c.chatId);
       const badgeHtml = unread > 0 ? `<div class="chat-unread-badge">${unread > 99 ? '99+' : unread}</div>` : (isHumano ? '<div class="chat-handoff-badge">👤</div>' : '');

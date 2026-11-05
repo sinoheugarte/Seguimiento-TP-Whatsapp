@@ -1,4 +1,4 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, downloadMediaMessage } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, downloadMediaMessage, jidNormalizedUser } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
@@ -11,36 +11,77 @@ function leerConfig() { return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
 let socket = null;
 let listo = false;
 let ultimoQR = null;
-let gruposCache = [];
-let contactosCache = new Map(); // chatId → nombre
-const lidToJid = new Map(); // @lid → @s.whatsapp.net (mismo contacto, distinto formato)
 let _reconectarIntentos = 0;
 
+// ── Directorio de nombres ────────────────────────────────────────────────────
+// Prioridad: 3 = nombre guardado en la agenda, 2 = nombre verificado/empresa, 1 = pushName
+const contactosCache = new Map(); // jid → nombre
+const contactosPrio = new Map();  // jid → prioridad del nombre guardado
+const lidToJid = new Map();       // xxx@lid → número@s.whatsapp.net
+const jidToLid = new Map();       // número@s.whatsapp.net → xxx@lid
+const gruposNombres = new Map();  // xxx@g.us → asunto del grupo
+
 const mensajesStore = new Map(); // chatId -> Message[]
-const chatsRecientes = new Map(); // chatId -> {chatId, nombre, ultimo, ts, esGrupo}
+const chatsRecientes = new Map(); // chatId -> {chatId, ultimo, ts, esGrupo, pushName, mediaTipo, fromMe}
 const handoffChats = new Set(); // chatIds bajo control humano (bot pausado)
 const MAX_MSGS_POR_CHAT = 500;
 let _sseBroadcast = null;
 function setSseBroadcast(fn) { _sseBroadcast = fn; }
-
-// Estado de carga del historial (para clientes SSE que conectan tarde)
-let _historialEstado = { cargando: false, procesados: 0, total: 0 };
-function getHistorialEstado() { return _historialEstado; }
+function emitir(data) { if (_sseBroadcast) _sseBroadcast(data); }
 
 function setHandoff(chatId, activo) {
   if (activo) handoffChats.add(chatId);
   else handoffChats.delete(chatId);
-  if (_sseBroadcast) _sseBroadcast({ tipo: 'handoff', chatId, activo });
+  emitir({ tipo: 'handoff', chatId, activo });
 }
 function isHandoff(chatId) { return handoffChats.has(chatId); }
 
 const AUTH_DIR = path.resolve('.baileys_auth');
 const CONTACTS_FILE = path.resolve('.baileys_auth', 'contacts-cache.json');
 const MESSAGES_CACHE_FILE = path.resolve('.baileys_auth', 'messages-cache.json');
+const AVATAR_DIR = path.resolve('.baileys_auth', 'avatars');
 const CHAT_MEDIA_DIR = path.resolve(__dirname, '../public/chat-media');
 
 function log(msg) {
   console.log('[WhatsApp]', msg);
+}
+
+const esperar = (ms) => new Promise(r => setTimeout(r, ms));
+
+function normJid(jid) {
+  if (!jid) return jid;
+  try { return jidNormalizedUser(jid) || jid; } catch (_) { return jid; }
+}
+
+function esContactoPrivado(id) {
+  return !!id && (id.endsWith('@s.whatsapp.net') || id.endsWith('@lid'));
+}
+
+function esBroadcast(id) {
+  return !id || id.endsWith('@broadcast') || id.endsWith('@newsletter');
+}
+
+// ── Estado de sincronización (indicador de progreso en la UI) ───────────────
+
+let syncEstado = { fase: 'conectando', texto: 'Conectando con WhatsApp…', procesados: 0, total: 0, pct: null };
+let _syncTimer = null;
+let _syncPendiente = false;
+function setSync(patch) {
+  syncEstado = { ...syncEstado, ...patch };
+  if (_syncTimer) { _syncPendiente = true; return; }
+  emitir({ tipo: 'sync', ...syncEstado });
+  _syncTimer = setTimeout(() => {
+    _syncTimer = null;
+    if (_syncPendiente) { _syncPendiente = false; emitir({ tipo: 'sync', ...syncEstado }); }
+  }, 250);
+}
+function getSyncEstado() { return syncEstado; }
+
+// Avisar a la UI que hay nombres/fotos nuevos (agrupado para no saturar)
+let _nombresTimer = null;
+function avisarNombres() {
+  if (_nombresTimer) return;
+  _nombresTimer = setTimeout(() => { _nombresTimer = null; emitir({ tipo: 'nombres' }); }, 1200);
 }
 
 // ── Persistencia de mensajes ─────────────────────────────────────────────────
@@ -77,78 +118,306 @@ function guardarMensajesCache() {
   }, 3000);
 }
 
-// ── Cache de contactos ────────────────────────────────────────────────────────
+// ── Cache de contactos, grupos y LID ────────────────────────────────────────
 
-// Carga el cache de contactos desde disco al iniciar
+const esSoloDigitos = (s) => /^\+?[\d\s\-()]+$/.test(String(s || '').trim());
+
 function cargarContactosDescoCache() {
   try {
-    if (fs.existsSync(CONTACTS_FILE)) {
-      const data = JSON.parse(fs.readFileSync(CONTACTS_FILE, 'utf8'));
-      contactosCache = new Map(Object.entries(data));
-      log(`Contactos cargados desde cache: ${contactosCache.size}`);
+    if (!fs.existsSync(CONTACTS_FILE)) return;
+    const data = JSON.parse(fs.readFileSync(CONTACTS_FILE, 'utf8'));
+    if (data && data.v === 2) {
+      for (const [jid, [nombre, prio]] of Object.entries(data.nombres || {})) {
+        contactosCache.set(jid, nombre); contactosPrio.set(jid, prio);
+      }
+      for (const [lid, pn] of Object.entries(data.lids || {})) { lidToJid.set(lid, pn); jidToLid.set(pn, lid); }
+      for (const [g, n] of Object.entries(data.grupos || {})) gruposNombres.set(g, n);
+    } else if (data) {
+      // Formato anterior { jid: nombre }: descartar "nombres" que solo eran el número
+      for (const [jid, nombre] of Object.entries(data)) {
+        if (typeof nombre !== 'string' || !nombre.trim() || esSoloDigitos(nombre)) continue;
+        contactosCache.set(jid, nombre.trim()); contactosPrio.set(jid, 2);
+      }
     }
+    log(`Directorio cargado: ${contactosCache.size} contactos, ${gruposNombres.size} grupos, ${lidToJid.size} LID`);
   } catch (_) {}
 }
 
-// Guarda el cache en disco cuando se actualiza
 let _saveTimer = null;
 function guardarContactosCache() {
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(() => {
     try {
-      const obj = Object.fromEntries(contactosCache);
+      const nombres = {};
+      for (const [jid, n] of contactosCache) nombres[jid] = [n, contactosPrio.get(jid) || 1];
+      const obj = { v: 2, nombres, lids: Object.fromEntries(lidToJid), grupos: Object.fromEntries(gruposNombres) };
       fs.writeFileSync(CONTACTS_FILE, JSON.stringify(obj), 'utf8');
     } catch (_) {}
-  }, 2000); // debounce 2s para no escribir en cada evento
+  }, 2000);
 }
 
-function esContactoPrivado(id) {
-  return id.endsWith('@s.whatsapp.net') || id.endsWith('@lid');
+function setNombre(jid, nombre, prio) {
+  jid = normJid(jid);
+  if (!esContactoPrivado(jid) || !nombre) return false;
+  nombre = String(nombre).trim();
+  if (!nombre || esSoloDigitos(nombre)) return false;
+  const prevPrio = contactosPrio.get(jid) || 0;
+  if (prevPrio > prio) return false;
+  if (contactosCache.get(jid) === nombre && prevPrio === prio) return false;
+  contactosCache.set(jid, nombre);
+  contactosPrio.set(jid, prio);
+  guardarContactosCache();
+  avisarNombres();
+  return true;
 }
 
-// Intenta mapear un @lid al @s.whatsapp.net equivalente buscando por nombre en caché
+function setGrupo(jid, nombre) {
+  jid = normJid(jid);
+  if (!jid?.endsWith('@g.us') || !nombre || !String(nombre).trim()) return;
+  nombre = String(nombre).trim();
+  if (gruposNombres.get(jid) === nombre) return;
+  gruposNombres.set(jid, nombre);
+  guardarContactosCache();
+  avisarNombres();
+}
+
+function setLidPn(lid, pn) {
+  lid = normJid(lid); pn = normJid(pn);
+  if (!lid?.endsWith('@lid') || !pn?.endsWith('@s.whatsapp.net')) return;
+  if (lidToJid.get(lid) === pn) return;
+  lidToJid.set(lid, pn);
+  jidToLid.set(pn, lid);
+  guardarContactosCache();
+  avisarNombres();
+}
+
+// Devuelve el @s.whatsapp.net equivalente de un @lid (o el mismo jid si no se conoce)
 function resolverLid(chatId) {
-  if (!chatId.endsWith('@lid')) return chatId;
-  // Primero intenta el mapa explícito (si Baileys proveyó c.lid)
-  if (lidToJid.has(chatId)) return lidToJid.get(chatId);
-  // Fallback: busca un @s.whatsapp.net con el mismo nombre en el caché
-  const nombre = contactosCache.get(chatId);
-  if (nombre) {
-    for (const [id, n] of contactosCache) {
-      if (id.endsWith('@s.whatsapp.net') && n === nombre) {
-        lidToJid.set(chatId, id); // cachear para próximas veces
-        return id;
-      }
-    }
+  if (!chatId?.endsWith('@lid')) return chatId;
+  return lidToJid.get(normJid(chatId)) || chatId;
+}
+
+// Mejor nombre conocido para un jid, combinando su forma @lid y @s.whatsapp.net
+function nombreDe(jid) {
+  jid = normJid(jid);
+  if (!jid) return '';
+  if (jid.endsWith('@g.us')) return gruposNombres.get(jid) || '';
+  const pn = jid.endsWith('@lid') ? lidToJid.get(jid) : jid;
+  const lid = jid.endsWith('@lid') ? jid : jidToLid.get(jid);
+  let mejor = '', mejorPrio = 0;
+  for (const j of [pn, lid]) {
+    if (!j || !contactosCache.has(j)) continue;
+    const p = contactosPrio.get(j) || 1;
+    if (p > mejorPrio) { mejor = contactosCache.get(j); mejorPrio = p; }
   }
-  return chatId;
+  return mejor;
+}
+
+function formatearNumero(pnJid) {
+  const d = String(pnJid || '').split('@')[0].split(':')[0].replace(/\D/g, '');
+  if (d.length <= 9) return d ? `+${d}` : '';
+  const cc = d.slice(0, d.length - 9);
+  const r = d.slice(-9);
+  return `+${cc} ${r.slice(0, 3)} ${r.slice(3, 6)} ${r.slice(6)}`;
+}
+
+function numeroDe(jid) {
+  const pn = jid?.endsWith('@lid') ? lidToJid.get(normJid(jid)) : jid;
+  return pn?.endsWith('@s.whatsapp.net') ? formatearNumero(pn) : '';
+}
+
+// Etiqueta visible de un chat, igual que WhatsApp: nombre guardado → número → ~pushName
+function etiquetaChat(chatId, pushName) {
+  const n = nombreDe(chatId);
+  if (n) return n;
+  if (chatId.endsWith('@g.us')) return 'Grupo';
+  if (chatId.endsWith('@newsletter')) return 'Canal';
+  return numeroDe(chatId) || (pushName ? `~ ${pushName}` : chatId.split('@')[0]);
 }
 
 function procesarContacto(c) {
-  if (!c.id || !esContactoPrivado(c.id)) return;
-  const nombre = c.name || c.notify || c.verifiedName || c.id.replace(/@s\.whatsapp\.net$|@lid$/, '');
-  contactosCache.set(c.id, nombre);
-  // Construir mapa @lid ↔ @s.whatsapp.net para el mismo contacto
-  if (c.id.endsWith('@s.whatsapp.net') && c.lid) {
-    const lid = c.lid.endsWith('@lid') ? c.lid : `${c.lid}@lid`;
-    lidToJid.set(lid, c.id);
-    contactosCache.set(lid, nombre);
-  } else if (c.id.endsWith('@lid') && c.lid) {
-    const jid = c.lid.endsWith('@s.whatsapp.net') ? c.lid : `${c.lid}@s.whatsapp.net`;
-    lidToJid.set(c.id, jid);
-    contactosCache.set(jid, nombre);
-  }
-  guardarContactosCache();
+  if (!c?.id) return;
+  const id = normJid(c.id);
+  if (id.endsWith('@g.us')) { setGrupo(id, c.subject || c.name); return; }
+  if (!esContactoPrivado(id)) return;
+  if (c.lid && id.endsWith('@s.whatsapp.net')) setLidPn(c.lid, id);
+  if (c.phoneNumber && id.endsWith('@lid')) setLidPn(id, c.phoneNumber);
+  if (c.name) setNombre(id, c.name, 3);
+  if (c.verifiedName) setNombre(id, c.verifiedName, 2);
+  if (c.notify) setNombre(id, c.notify, 1);
 }
 
+// Aprende LID↔número y pushName a partir de la clave de un mensaje
+function aprenderDeMensaje(msg) {
+  const k = msg.key || {};
+  if (k.remoteJidAlt) {
+    if (k.remoteJid?.endsWith('@lid')) setLidPn(k.remoteJid, k.remoteJidAlt);
+    else if (k.remoteJidAlt.endsWith('@lid')) setLidPn(k.remoteJidAlt, k.remoteJid);
+  }
+  if (k.participant && k.participantAlt) {
+    if (k.participant.endsWith('@lid')) setLidPn(k.participant, k.participantAlt);
+    else if (k.participantAlt.endsWith('@lid')) setLidPn(k.participantAlt, k.participant);
+  }
+  if (!k.fromMe && msg.pushName) {
+    const autor = k.remoteJid?.endsWith('@g.us') ? k.participant : k.remoteJid;
+    if (autor) setNombre(autor, msg.pushName, 1);
+  }
+}
+
+// ── Fotos de perfil ──────────────────────────────────────────────────────────
+// Se guardan en .baileys_auth/avatars; un archivo vacío marca "sin foto / privada".
+
+const FOTO_TTL = 3 * 24 * 3600e3;
+const FOTO_NEG_TTL = 12 * 3600e3;
+const fotoEnCurso = new Map();
+
+function archivoFoto(jid) {
+  return path.join(AVATAR_DIR, `${normJid(jid).replace(/[^\w.@-]/g, '_')}.jpg`);
+}
+
+// 'fresca' | 'vieja' | 'sin' | 'desconocida'
+function estadoFoto(jid) {
+  try {
+    const st = fs.statSync(archivoFoto(jid));
+    const edad = Date.now() - st.mtimeMs;
+    if (st.size === 0) return edad < FOTO_NEG_TTL ? 'sin' : 'desconocida';
+    return edad < FOTO_TTL ? 'fresca' : 'vieja';
+  } catch (_) { return 'desconocida'; }
+}
+
+function versionFoto(jid) {
+  try { const st = fs.statSync(archivoFoto(jid)); return st.size > 0 ? Math.floor(st.mtimeMs) : 0; } catch (_) { return null; }
+}
+
+function esLimiteDeTasa(e) {
+  return e?.output?.statusCode === 429 || /rate-overlimit|429/i.test(e?.message || '');
+}
+
+function descargarFoto(jid) {
+  jid = normJid(jid);
+  if (fotoEnCurso.has(jid)) return fotoEnCurso.get(jid);
+  const p = (async () => {
+    if (!listo || !socket) return;
+    const candidatos = [jid];
+    if (jid.endsWith('@lid') && lidToJid.get(jid)) candidatos.push(lidToJid.get(jid));
+    let url = null;
+    for (const c of candidatos) {
+      try { url = await socket.profilePictureUrl(c, 'preview', 8000); }
+      catch (e) { if (esLimiteDeTasa(e)) throw e; }
+      if (url) break;
+    }
+    fs.mkdirSync(AVATAR_DIR, { recursive: true });
+    if (!url) { fs.writeFileSync(archivoFoto(jid), ''); return; }
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    fs.writeFileSync(archivoFoto(jid), Buffer.from(await r.arrayBuffer()));
+  })().finally(() => fotoEnCurso.delete(jid));
+  fotoEnCurso.set(jid, p);
+  return p;
+}
+
+// Para el endpoint: devuelve la ruta del archivo o null si el chat no tiene foto
+async function obtenerFotoPerfil(jid) {
+  let est = estadoFoto(jid);
+  if (est === 'desconocida') {
+    try { await descargarFoto(jid); } catch (_) {}
+    est = estadoFoto(jid);
+  } else if (est === 'vieja') {
+    descargarFoto(jid).catch(() => {});
+  }
+  return (est === 'fresca' || est === 'vieja') ? archivoFoto(jid) : null;
+}
+
+// ── Resolución en segundo plano de nombres, números y fotos ─────────────────
+
+const gruposFallidos = new Set();
+let _resolviendo = false;
+let _resolverOtraVez = false;
+let _gruposTs = 0;
+
+async function refrescarGrupos(forzar = false) {
+  if (!listo || !socket) return;
+  if (!forzar && Date.now() - _gruposTs < 10 * 60e3) return;
+  _gruposTs = Date.now();
+  try {
+    const grupos = await socket.groupFetchAllParticipating();
+    for (const g of Object.values(grupos)) setGrupo(g.id, g.subject);
+  } catch (e) { log(`No se pudo obtener la lista de grupos: ${e.message?.slice(0, 60)}`); }
+}
+
+async function resolverPendientes() {
+  if (_resolviendo) { _resolverOtraVez = true; return; }
+  _resolviendo = true;
+  try {
+    do {
+      _resolverOtraVez = false;
+      if (!listo || !socket) break;
+      setSync({ fase: 'resolviendo', texto: 'Actualizando nombres de grupos…', procesados: 0, total: 0, pct: null });
+      await refrescarGrupos();
+
+      const chats = [...chatsRecientes.values()]
+        .filter(c => !esBroadcast(c.chatId))
+        .sort((a, b) => (b.ts || 0) - (a.ts || 0));
+      const total = chats.length;
+      let procesados = 0;
+      setSync({ fase: 'resolviendo', texto: 'Actualizando nombres y fotos', procesados, total, pct: null });
+
+      let i = 0;
+      const trabajador = async () => {
+        while (i < chats.length && listo) {
+          const { chatId } = chats[i++];
+          try {
+            if (chatId.endsWith('@g.us') && !gruposNombres.has(chatId) && !gruposFallidos.has(chatId)) {
+              try {
+                const meta = await socket.groupMetadata(chatId);
+                if (meta?.subject) setGrupo(chatId, meta.subject);
+                else gruposFallidos.add(chatId);
+              } catch (e) { if (esLimiteDeTasa(e)) throw e; gruposFallidos.add(chatId); }
+            }
+            if (chatId.endsWith('@lid') && !lidToJid.has(chatId)) {
+              const pn = await socket.signalRepository?.lidMapping?.getPNForLID(chatId).catch(() => null);
+              if (pn) setLidPn(chatId, pn);
+            }
+            const est = estadoFoto(chatId);
+            if (est === 'desconocida' || est === 'vieja') {
+              await descargarFoto(chatId);
+              avisarNombres();
+              await esperar(150);
+            }
+          } catch (e) {
+            if (esLimiteDeTasa(e)) { log('WhatsApp pidió bajar el ritmo; pausa de 10s'); await esperar(10000); }
+          }
+          procesados++;
+          setSync({ fase: 'resolviendo', texto: 'Actualizando nombres y fotos', procesados, total });
+        }
+      };
+      await Promise.all([trabajador(), trabajador(), trabajador()]);
+    } while (_resolverOtraVez && listo);
+  } finally {
+    _resolviendo = false;
+    if (listo) setSync({ fase: 'listo', texto: 'Sincronizado', procesados: 0, total: 0, pct: null });
+    emitir({ tipo: 'nombres' });
+  }
+}
+
+let _resolverTimer = null;
+function programarResolucion(ms = 2500) {
+  clearTimeout(_resolverTimer);
+  _resolverTimer = setTimeout(() => resolverPendientes().catch(() => {}), ms);
+}
+
+// ── Guardado de mensajes ─────────────────────────────────────────────────────
+
 async function guardarMensaje(msg, { descargarMedia = true, emitirSSE = true } = {}) {
-  const chatId = msg.key.remoteJid;
+  const chatId = normJid(msg.key?.remoteJid);
   if (!chatId || chatId === 'status@broadcast') return;
   const m = msg.message || {};
 
   // Ignorar mensajes no visibles: reacciones, eliminaciones, distribución de claves, etc.
   if (m.protocolMessage || m.reactionMessage || m.senderKeyDistributionMessage ||
       m.retryRequestMessage || m.appStateSyncKeyShare) return;
+
+  aprenderDeMensaje(msg);
 
   // Desenvolver mensajes "envoltorio" (efímeros, ver-una-vez, doc con caption, etc.)
   const mc = m.ephemeralMessage?.message ||
@@ -157,17 +426,16 @@ async function guardarMensaje(msg, { descargarMedia = true, emitirSSE = true } =
              m.documentWithCaptionMessage?.message ||
              m;
 
-  // Extraer texto según el tipo real del mensaje
   let texto = mc.conversation || mc.extendedTextMessage?.text ||
     mc.imageMessage?.caption || mc.videoMessage?.caption ||
     mc.documentMessage?.caption || '';
 
   if (!texto) {
     if (mc.stickerMessage)             texto = '[Sticker]';
-    else if (mc.locationMessage)       texto = `📍 Ubicación compartida`;
-    else if (mc.liveLocationMessage)   texto = `📍 Ubicación en vivo`;
+    else if (mc.locationMessage)       texto = '📍 Ubicación compartida';
+    else if (mc.liveLocationMessage)   texto = '📍 Ubicación en vivo';
     else if (mc.contactMessage)        texto = `👤 ${mc.contactMessage.displayName || 'Contacto'}`;
-    else if (mc.contactsArrayMessage)  texto = `👥 Contactos compartidos`;
+    else if (mc.contactsArrayMessage)  texto = '👥 Contactos compartidos';
     else if (mc.pollCreationMessage)   texto = `📊 Encuesta: ${mc.pollCreationMessage.name || ''}`;
     else if (mc.pollCreationMessageV3) texto = `📊 Encuesta: ${mc.pollCreationMessageV3.name || ''}`;
     else if (mc.groupInviteMessage)    texto = `👥 Invitación al grupo: ${mc.groupInviteMessage.groupName || 'grupo'}`;
@@ -178,15 +446,12 @@ async function guardarMensaje(msg, { descargarMedia = true, emitirSSE = true } =
     else if (m.viewOnceMessage || m.viewOnceMessageV2) texto = '[Mensaje de ver una vez]';
   }
 
-  // Tipo de media y descarga (usando mc — el contenido real)
   let mediaTipo = null;
   let mediaPath = null;
   const tieneImagen = !!(mc.imageMessage || mc.stickerMessage);
   const tieneVideo  = !!mc.videoMessage;
   const tieneAudio  = !!mc.audioMessage;
   const tieneDoc    = !!mc.documentMessage;
-
-  // Detectar tipo de media siempre (para mostrar el ícono correcto aunque no descarguemos)
   if (tieneImagen || tieneVideo || tieneAudio || tieneDoc) {
     mediaTipo = tieneImagen ? 'imagen' : tieneVideo ? 'video' : tieneAudio ? 'audio' : 'documento';
   }
@@ -205,18 +470,15 @@ async function guardarMensaje(msg, { descargarMedia = true, emitirSSE = true } =
       fs.writeFileSync(path.join(CHAT_MEDIA_DIR, fname), buf);
       mediaPath = `/chat-media/${fname}`;
     } catch (e) {
-      log(`[ChatMedia] no se pudo descargar (${e.message?.slice(0,60)})`);
+      log(`[ChatMedia] no se pudo descargar (${e.message?.slice(0, 60)})`);
     }
   }
 
   const fromMe = !!msg.key.fromMe;
   const ts = Number(msg.messageTimestamp) * 1000 || Date.now();
-  const pushName = msg.pushName || '';
-  // Para @lid intentamos resolver al @s.whatsapp.net equivalente para buscar el nombre
-  const chatIdResuelto = chatId.endsWith('@lid') ? resolverLid(chatId) : chatId;
-  const nombre = chatId.endsWith('@g.us')
-    ? (gruposCache.find(g => g.chatId === chatId)?.nombre || chatId.replace('@g.us', ''))
-    : (contactosCache.get(chatIdResuelto) || contactosCache.get(chatId) || pushName || chatId.replace(/@[^@]+$/, ''));
+  const pushName = fromMe ? '' : (msg.pushName || '');
+  const esGrupo = chatId.endsWith('@g.us');
+  const autorJid = esGrupo ? normJid(msg.key.participant) : chatId;
 
   const msgObj = {
     id: msg.key.id,
@@ -224,7 +486,8 @@ async function guardarMensaje(msg, { descargarMedia = true, emitirSSE = true } =
     fromMe,
     texto: texto || '',
     ts,
-    autor: fromMe ? 'Tú' : (pushName || contactosCache.get(chatIdResuelto) || contactosCache.get(chatId) || chatId.replace(/@[^@]+$/, '')),
+    autor: fromMe ? 'Tú' : (nombreDe(autorJid) || numeroDe(autorJid) || pushName || (autorJid || '').split('@')[0]),
+    autorId: fromMe ? null : autorJid,
     mediaTipo,
     mediaPath,
     docNombre: mc.documentMessage?.fileName || null
@@ -233,26 +496,58 @@ async function guardarMensaje(msg, { descargarMedia = true, emitirSSE = true } =
   if (!mensajesStore.has(chatId)) mensajesStore.set(chatId, []);
   const lista = mensajesStore.get(chatId);
   if (!lista.find(x => x.id === msgObj.id)) {
+    const ultimo = lista[lista.length - 1];
     lista.push(msgObj);
+    if (ultimo && msgObj.ts < ultimo.ts) lista.sort((a, b) => a.ts - b.ts);
     if (lista.length > MAX_MSGS_POR_CHAT) lista.shift();
   }
+
   const ultimoTexto = texto || (
-    mediaTipo === 'imagen'    ? '📷 Imagen' :
+    mediaTipo === 'imagen'    ? '📷 Foto' :
     mediaTipo === 'video'     ? '🎥 Video' :
-    mediaTipo === 'audio'     ? '🎵 Audio' :
+    mediaTipo === 'audio'     ? '🎤 Audio' :
     mediaTipo === 'documento' ? `📄 ${mc.documentMessage?.fileName || 'Documento'}` :
     '[Mensaje]'
   );
-  chatsRecientes.set(chatId, { chatId, nombre, ultimo: ultimoTexto, ts, esGrupo: chatId.endsWith('@g.us') });
-  if (emitirSSE && _sseBroadcast) _sseBroadcast({ tipo: 'mensaje', ...msgObj, chatNombre: nombre });
+  const previo = chatsRecientes.get(chatId);
+  if (!previo || ts >= (previo.ts || 0)) {
+    chatsRecientes.set(chatId, {
+      chatId,
+      ultimo: ultimoTexto,
+      ts,
+      esGrupo,
+      fromMe,
+      autorUltimo: esGrupo && !fromMe ? msgObj.autor : '',
+      pushName: (!esGrupo && pushName) ? pushName : (previo?.pushName || '')
+    });
+  }
+  if (emitirSSE) emitir({ tipo: 'mensaje', ...msgObj, chatNombre: etiquetaChat(chatId, pushName) });
   guardarMensajesCache();
   return msgObj;
 }
 
+// ── Conexión ────────────────────────────────────────────────────────────────
+
+function limpiarCredenciales(conservar) {
+  try {
+    for (const f of fs.readdirSync(AUTH_DIR)) {
+      const ruta = path.join(AUTH_DIR, f);
+      if (conservar.includes(f) || fs.statSync(ruta).isDirectory()) continue;
+      fs.unlinkSync(ruta);
+    }
+  } catch (_) {}
+}
+
+let _directorioCargado = false;
+
 async function inicializar() {
   if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR, { recursive: true });
-  cargarContactosDescoCache();
-  cargarMensajesCache();
+  if (!_directorioCargado) {
+    cargarContactosDescoCache();
+    cargarMensajesCache();
+    _directorioCargado = true;
+  }
+  setSync({ fase: 'conectando', texto: 'Conectando con WhatsApp…', procesados: 0, total: 0, pct: null });
 
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
   const { version } = await fetchLatestBaileysVersion();
@@ -273,6 +568,7 @@ async function inicializar() {
 
     if (qr) {
       ultimoQR = qr;
+      setSync({ fase: 'qr', texto: 'Escanea el código QR para vincular WhatsApp', pct: null, procesados: 0, total: 0 });
       qrcode.toString(qr, { type: 'terminal', small: true }, (err, str) => {
         console.log('\n──────────────────────────────────────────');
         console.log('  Escanea este QR con tu celular de empresa');
@@ -287,6 +583,8 @@ async function inicializar() {
       ultimoQR = null;
       _reconectarIntentos = 0;
       log('Conectado correctamente ✓');
+      setSync({ fase: 'resolviendo', texto: 'Sincronizando chats…', procesados: 0, total: 0, pct: null });
+      refrescarGrupos(true).finally(() => programarResolucion(3000));
     }
 
     if (connection === 'close') {
@@ -294,7 +592,6 @@ async function inicializar() {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
       const reason = lastDisconnect?.error?.message || '';
       const isLoggedOut = statusCode === DisconnectReason.loggedOut;
-      // 515 = RestartRequired (Baileys), 408 = Timeout, 503 = Unavailable
       const isRestartRequired = statusCode === 515;
       const delay = isRestartRequired ? 2000 : Math.min(5000 * Math.pow(2, _reconectarIntentos), 60000);
 
@@ -303,101 +600,62 @@ async function inicializar() {
       if (isLoggedOut) {
         _reconectarIntentos = 0;
         log('Sesión cerrada (loggedOut). Limpiando credenciales...');
-        try {
-          const files = fs.readdirSync(AUTH_DIR);
-          for (const f of files) {
-            if (f !== 'contacts-cache.json' && f !== 'messages-cache.json') {
-              fs.unlinkSync(path.join(AUTH_DIR, f));
-            }
-          }
-        } catch (_) {}
+        limpiarCredenciales(['contacts-cache.json', 'messages-cache.json']);
+        setSync({ fase: 'conectando', texto: 'Sesión cerrada — generando nuevo QR…', pct: null });
         setTimeout(inicializar, 3000);
       } else {
         _reconectarIntentos++;
         log(`Reconectando en ${delay / 1000}s (intento ${_reconectarIntentos})...`);
+        setSync({ fase: 'conectando', texto: `Reconectando en ${Math.round(delay / 1000)} s…`, pct: null, procesados: 0, total: 0 });
         setTimeout(inicializar, delay);
       }
     }
-
   });
 
-  socket.ev.on('groups.upsert', (grupos) => {
-    for (const g of grupos) {
-      const nombre = g.subject || '';
-      const existe = gruposCache.find((x) => x.chatId === g.id);
-      if (existe) { existe.nombre = nombre; }
-      else gruposCache.push({ nombre, chatId: g.id });
-      // Actualizar nombre en chatsRecientes si ya tenía el grupo con ID crudo
-      if (chatsRecientes.has(g.id) && nombre) chatsRecientes.get(g.id).nombre = nombre;
-    }
-  });
+  socket.ev.on('groups.upsert', (grupos) => { for (const g of grupos) setGrupo(g.id, g.subject); });
+  socket.ev.on('groups.update', (grupos) => { for (const g of grupos) if (g.subject) setGrupo(g.id, g.subject); });
+  socket.ev.on('lid-mapping.update', ({ lid, pn }) => setLidPn(lid, pn));
 
-  // Carga masiva inicial: contactos + chats + mensajes históricos de WhatsApp
-  socket.ev.on('messaging-history.set', async ({ contacts = [], chats = [], messages = [] }) => {
+  // Carga masiva: contactos + chats + mensajes históricos (llega en varios lotes)
+  socket.ev.on('messaging-history.set', async ({ contacts = [], chats = [], messages = [], lidPnMappings = [], progress }) => {
+    for (const mp of lidPnMappings) setLidPn(mp.lid, mp.pn);
     for (const c of contacts) procesarContacto(c);
     for (const c of chats) {
-      if (!c.id || !esContactoPrivado(c.id)) continue;
-      if (contactosCache.has(c.id)) continue;
-      const nombre = c.name || c.id.replace(/@s\.whatsapp\.net$|@lid$/, '');
-      contactosCache.set(c.id, nombre);
-    }
-    guardarContactosCache();
-    log(`Contactos tras historial: ${contactosCache.size}`);
-
-    // Extraer nombres de los mensajes históricos vía pushName (mejora resolución de @lid)
-    for (const msg of messages) {
-      if (!msg.pushName) continue;
-      const cid = msg.key?.remoteJid;
-      if (!cid || cid.endsWith('@g.us') || cid === 'status@broadcast') continue;
-      if (!contactosCache.has(cid)) contactosCache.set(cid, msg.pushName);
+      procesarContacto({ id: c.id, name: c.displayName || c.name, lid: c.lidJid, phoneNumber: c.pnJid });
     }
 
-    // Guardar mensajes históricos: sin media, sin SSE individual (evita saturar el navegador)
-    if (messages.length > 0) {
-      const total = messages.length;
-      log(`Procesando ${total} mensajes históricos de WhatsApp...`);
-      _historialEstado = { cargando: true, procesados: 0, total };
-      if (_sseBroadcast) _sseBroadcast({ tipo: 'historial_progreso', procesados: 0, total });
-      for (let i = 0; i < messages.length; i++) {
-        try { await guardarMensaje(messages[i], { descargarMedia: false, emitirSSE: false }); } catch (_) {}
-        // Enviar progreso cada 100 mensajes para no saturar SSE
-        if ((i + 1) % 100 === 0) {
-          _historialEstado = { cargando: true, procesados: i + 1, total };
-          if (_sseBroadcast) _sseBroadcast({ tipo: 'historial_progreso', procesados: i + 1, total });
-        }
+    const total = messages.length;
+    const pctWA = typeof progress === 'number' ? Math.min(100, Math.max(0, Math.round(progress))) : null;
+    log(`Historial recibido: ${total} mensajes, ${contacts.length} contactos (progreso WhatsApp: ${pctWA ?? '—'}%)`);
+    setSync({ fase: 'historial', texto: 'Sincronizando historial de chats', procesados: 0, total, pct: pctWA });
+
+    for (let i = 0; i < total; i++) {
+      try { await guardarMensaje(messages[i], { descargarMedia: false, emitirSSE: false }); } catch (_) {}
+      if ((i + 1) % 100 === 0) {
+        setSync({ procesados: i + 1 });
+        await esperar(0); // ceder el event loop para no congelar la conexión
       }
-      _historialEstado = { cargando: false, procesados: total, total };
-      log(`Historial cargado: ${mensajesStore.size} chats en memoria`);
-      // Un solo evento SSE para que el frontend recargue la lista
-      if (_sseBroadcast) _sseBroadcast({ tipo: 'historial_listo', chats: mensajesStore.size });
     }
+    emitir({ tipo: 'nombres' });
+    programarResolucion();
   });
 
-  // Actualizaciones en tiempo real
-  socket.ev.on('contacts.upsert', (contacts) => {
-    for (const c of contacts) procesarContacto(c);
-  });
-
+  socket.ev.on('contacts.upsert', (contacts) => { for (const c of contacts) procesarContacto(c); });
   socket.ev.on('contacts.update', (updates) => {
-    for (const c of updates) procesarContacto(c);
+    for (const c of updates) {
+      procesarContacto(c);
+      if (c.id && c.imgUrl !== undefined) {
+        try { fs.unlinkSync(archivoFoto(c.id)); } catch (_) {}
+        avisarNombres();
+      }
+    }
   });
 
-  // Chats nuevos/actualizados: extraer contactos individuales
   socket.ev.on('chats.upsert', (chats) => {
-    for (const c of chats) {
-      if (!c.id || !esContactoPrivado(c.id)) continue;
-      if (contactosCache.has(c.id)) continue;
-      const nombre = c.name || c.id.replace(/@s\.whatsapp\.net$|@lid$/, '');
-      contactosCache.set(c.id, nombre);
-    }
+    for (const c of chats) procesarContacto({ id: c.id, name: c.displayName || c.name, lid: c.lidJid, phoneNumber: c.pnJid });
   });
-
   socket.ev.on('chats.update', (chats) => {
-    for (const c of chats) {
-      if (!c.id || !esContactoPrivado(c.id)) continue;
-      if (!c.name) continue;
-      contactosCache.set(c.id, c.name);
-    }
+    for (const c of chats) if (c.name || c.displayName) procesarContacto({ id: c.id, name: c.displayName || c.name });
   });
 
   // Palabras clave que activan el handoff humano
@@ -408,9 +666,8 @@ async function inicializar() {
   socket.ev.on('messages.upsert', async ({ messages, type }) => {
     for (const msg of messages) {
       if (!msg.message) continue;
-      // Guardar en store — try/catch para que un error no corte el loop completo
       let msgObj = null;
-      try { msgObj = await guardarMensaje(msg); } catch (e) { log(`[guardarMensaje] error: ${e.message?.slice(0,80)}`); }
+      try { msgObj = await guardarMensaje(msg); } catch (e) { log(`[guardarMensaje] error: ${e.message?.slice(0, 80)}`); }
 
       if (type !== 'notify') continue; // El agente IA solo procesa mensajes en tiempo real
       if (msg.key.fromMe) {
@@ -423,9 +680,8 @@ async function inicializar() {
         const texto = textoRaw.trimStart().slice(prefijo.length).trim();
         if (!texto || !chatId) continue;
         log(`Mensaje propio con prefijo "${prefijo}" detectado en ${chatId}`);
-        const chatIdFiltro = resolverLid(chatId);
         try {
-          const respuesta = await procesarMensaje(chatIdFiltro, texto);
+          const respuesta = await procesarMensaje(resolverLid(chatId), texto);
           if (respuesta) await socket.sendMessage(chatId, { text: respuesta });
         } catch (err) { console.error('[Agente] Error procesando mensaje propio:', err.message); }
         continue;
@@ -433,13 +689,6 @@ async function inicializar() {
 
       const chatId = msg.key.remoteJid;
       if (!chatId) continue;
-
-      // Registrar @lid en caché usando pushName del mensaje (si aún no está)
-      if (chatId.endsWith('@lid') && msg.pushName && !contactosCache.has(chatId)) {
-        contactosCache.set(chatId, msg.pushName);
-        guardarContactosCache();
-        log(`Contacto @lid registrado: ${chatId} → ${msg.pushName}`);
-      }
 
       const textoRaw = msg.message.conversation ||
         msg.message.extendedTextMessage?.text ||
@@ -455,7 +704,6 @@ async function inicializar() {
         continue;
       }
 
-      // Si el chat está en modo handoff, el bot no responde
       if (isHandoff(chatId)) {
         log(`[Handoff] Mensaje ignorado por bot en ${chatId} (atención humana activa)`);
         continue;
@@ -464,13 +712,11 @@ async function inicializar() {
       // Normalizar @lid → @s.whatsapp.net para que coincida con el filtro guardado
       const chatIdFiltro = resolverLid(chatId);
 
-      // Preparar imagen para visión si el mensaje trae una
       let imagenPath = null;
       if (msgObj?.mediaTipo === 'imagen' && msgObj?.mediaPath) {
         imagenPath = path.resolve(__dirname, '..', 'public', msgObj.mediaPath.replace(/^\//, ''));
       }
 
-      // Si no hay texto ni imagen, no hay nada que procesar
       if (!textoRaw.trim() && !imagenPath) continue;
 
       try {
@@ -551,26 +797,50 @@ async function enviarMensaje(chatId, texto, archivos = []) {
 }
 
 function ordenarAlf(arr) {
-  return arr.sort((a, b) => (a.nombre||'').localeCompare(b.nombre||'', 'es', { sensitivity: 'base' }));
+  return arr.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es', { sensitivity: 'base' }));
 }
 
+// La UI consulta el estado cada 15 s: se usa la caché y solo se refresca cada 10 min
 async function listarGrupos() {
   if (!listo) throw new Error('WhatsApp no esta conectado');
-  try {
-    const chats = await socket.groupFetchAllParticipating();
-    gruposCache = Object.values(chats).map((g) => ({ nombre: g.subject || '', chatId: g.id }));
-  } catch (_) {}
-  return ordenarAlf([...gruposCache]);
+  await refrescarGrupos();
+  return ordenarAlf([...gruposNombres].map(([chatId, nombre]) => ({ nombre, chatId })));
 }
 
 function listarContactos() {
   if (!listo) throw new Error('WhatsApp no esta conectado');
+  const vistos = new Set();
   const lista = [];
   for (const [chatId, nombre] of contactosCache) {
-    lista.push({ nombre, chatId });
+    // Evitar duplicados @lid/@s.whatsapp.net del mismo contacto: preferir el número
+    const pn = chatId.endsWith('@lid') ? lidToJid.get(chatId) : chatId;
+    const clave = pn || chatId;
+    if (vistos.has(clave)) continue;
+    vistos.add(clave);
+    lista.push({ nombre: nombreDe(clave) || nombre, chatId: clave });
   }
   return ordenarAlf(lista);
 }
+
+// Lista para la columna de chats, con nombre y foto ya resueltos
+function listarChats(limite = 1000) {
+  return [...chatsRecientes.values()]
+    .sort((a, b) => (b.ts || 0) - (a.ts || 0))
+    .slice(0, limite)
+    .map(c => ({
+      chatId: c.chatId,
+      nombre: etiquetaChat(c.chatId, c.pushName),
+      numero: c.esGrupo ? '' : numeroDe(c.chatId),
+      ultimo: c.ultimo,
+      autorUltimo: c.autorUltimo || '',
+      fromMe: !!c.fromMe,
+      ts: c.ts,
+      esGrupo: !!c.esGrupo,
+      fotoV: versionFoto(c.chatId)
+    }));
+}
+
+function getChatsRecientes() { return chatsRecientes; }
 
 function getUltimoQR() { return ultimoQR; }
 function estaListo() { return listo; }
@@ -580,29 +850,13 @@ async function cerrarSesion() {
   ultimoQR = null;
   try { if (socket) await socket.logout(); } catch (_) {}
   socket = null;
-  // Eliminar archivos de autenticación preservando el cache de contactos
-  try {
-    const files = fs.readdirSync(AUTH_DIR);
-    for (const f of files) {
-      if (f !== 'contacts-cache.json') fs.unlinkSync(path.join(AUTH_DIR, f));
-    }
-  } catch (_) {}
+  limpiarCredenciales(['contacts-cache.json']);
   log('Sesión cerrada manualmente. Generando nuevo QR...');
   setTimeout(inicializar, 1500);
 }
 
-module.exports = { inicializar, enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion, getMensajesStore: () => mensajesStore, getChatsRecientes, setSseBroadcast, setHandoff, isHandoff, getHistorialEstado };
-
-function getChatsRecientes() {
-  // Re-resolver nombres en cada consulta usando el cache actual (puede haber llegado después del primer mensaje)
-  for (const [chatId, chat] of chatsRecientes) {
-    if (chatId.endsWith('@g.us')) {
-      const g = gruposCache.find(x => x.chatId === chatId);
-      if (g?.nombre) chat.nombre = g.nombre;
-    } else {
-      const n = contactosCache.get(chatId);
-      if (n) chat.nombre = n;
-    }
-  }
-  return chatsRecientes;
-}
+module.exports = {
+  inicializar, enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion,
+  getMensajesStore: () => mensajesStore, getChatsRecientes, listarChats, setSseBroadcast,
+  setHandoff, isHandoff, getSyncEstado, obtenerFotoPerfil
+};

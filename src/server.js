@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion, getMensajesStore, getChatsRecientes, setSseBroadcast, setHandoff, isHandoff, getHistorialEstado } = require('./whatsapp');
+const { enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion, getMensajesStore, listarChats, setSseBroadcast, setHandoff, isHandoff, getSyncEstado, obtenerFotoPerfil } = require('./whatsapp');
 const qrcode = require('qrcode');
 const { enviarCorreo } = require('./email');
 const { ejecutarProgramacion, iniciarProgramaciones, detenerTodo } = require('./scheduler');
@@ -350,11 +350,8 @@ app.get('/api/chat/sse', (req, res) => {
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
-  // Si el historial todavía está cargando, informar al cliente recién conectado
-  const estado = getHistorialEstado();
-  if (estado.cargando) {
-    res.write(`data: ${JSON.stringify({ tipo: 'historial_progreso', procesados: estado.procesados, total: estado.total })}\n\n`);
-  }
+  // Estado actual de la sincronización para el cliente recién conectado
+  res.write(`data: ${JSON.stringify({ tipo: 'sync', ...getSyncEstado() })}\n\n`);
   sseClientes.push(res);
   const hb = setInterval(() => { try { res.write(': ping\n\n'); } catch (_) {} }, 25000);
   req.on('close', () => {
@@ -365,10 +362,23 @@ app.get('/api/chat/sse', (req, res) => {
 });
 
 app.get('/api/chat/chats', (req, res) => {
-  const chats = Array.from(getChatsRecientes().values())
-    .sort((a, b) => b.ts - a.ts)
-    .slice(0, 60);
-  res.json(chats);
+  res.json(listarChats());
+});
+
+app.get('/api/chat/sync', (req, res) => {
+  res.json(getSyncEstado());
+});
+
+const JID_VALIDO = /^[\w.:-]+@(s\.whatsapp\.net|lid|g\.us)$/;
+app.get('/api/chat/foto/:chatId', async (req, res) => {
+  const { chatId } = req.params;
+  if (!JID_VALIDO.test(chatId)) return res.status(400).end();
+  try {
+    const archivo = await obtenerFotoPerfil(chatId);
+    if (!archivo) return res.status(404).set('Cache-Control', 'no-store').end();
+    res.set('Cache-Control', 'private, max-age=604800, immutable');
+    res.type('image/jpeg').sendFile(archivo);
+  } catch (_) { res.status(404).end(); }
 });
 
 app.get('/api/chat/mensajes/:chatId', (req, res) => {

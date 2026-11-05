@@ -116,8 +116,18 @@ powershell -NoProfile -Command ^
    $s.Description = 'Iniciar TP WhatsApp'; ^
    $s.Save()" >nul 2>&1
 
+set "STOP_SHORTCUT=%USERPROFILE%\Desktop\Detener TP WhatsApp.lnk"
+powershell -NoProfile -Command ^
+  "$ws = New-Object -ComObject WScript.Shell; ^
+   $s = $ws.CreateShortcut('%STOP_SHORTCUT%'); ^
+   $s.TargetPath = '%APP_DIR%Detener-TP.vbs'; ^
+   $s.WorkingDirectory = '%APP_DIR%'; ^
+   $s.IconLocation = '%ICON%, 27'; ^
+   $s.Description = 'Detener TP WhatsApp'; ^
+   $s.Save()" >nul 2>&1
+
 if exist "%SHORTCUT%" (
-    echo  [✓] Acceso directo "TP WhatsApp" creado en el Escritorio
+    echo  [✓] Accesos directos "TP WhatsApp" y "Detener TP WhatsApp" creados en el Escritorio
 ) else (
     echo  [~] No se pudo crear el acceso directo ^(continuá igual^)
 )
@@ -130,7 +140,8 @@ echo  ╠═══════════════════════�
 echo  ║                                                      ║
 echo  ║  Para iniciar la aplicación:                         ║
 echo  ║  → Doble clic en "TP WhatsApp" del Escritorio        ║
-echo  ║  → O ejecutá directamente "Iniciar-TP.bat"           ║
+echo  ║  → Se ejecuta en segundo plano, sin ventana          ║
+echo  ║  → Para apagarlo: "Detener TP WhatsApp"              ║
 echo  ║                                                      ║
 echo  ║  Luego abrí en el navegador:                         ║
 echo  ║       http://localhost:3000                          ║

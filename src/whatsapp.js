@@ -380,8 +380,9 @@ async function inicializar() {
   socket.ev.on('messages.upsert', async ({ messages, type }) => {
     for (const msg of messages) {
       if (!msg.message) continue;
-      // Guardar en store (await para poder usar mediaPath del resultado)
-      const msgObj = await guardarMensaje(msg);
+      // Guardar en store — try/catch para que un error no corte el loop completo
+      let msgObj = null;
+      try { msgObj = await guardarMensaje(msg); } catch (e) { log(`[guardarMensaje] error: ${e.message?.slice(0,80)}`); }
 
       if (type !== 'notify') continue; // El agente IA solo procesa mensajes en tiempo real
       if (msg.key.fromMe) {

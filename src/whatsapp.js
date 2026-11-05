@@ -928,7 +928,7 @@ function ffmpeg(args) {
 function borrarSilencioso(ruta) { try { fs.unlinkSync(ruta); } catch (_) {} }
 
 // tipo: 'auto' (según extensión) | 'documento' | 'ptt' (nota de voz) | 'sticker'
-async function enviarChat(chatId, { texto = '', ruta = null, nombre = '', tipo = 'auto' } = {}) {
+async function enviarChat(chatId, { texto = '', ruta = null, nombre = '', tipo = 'auto', verUnaVez = false } = {}) {
   if (!listo) throw new Error('WhatsApp no esta conectado');
   if (!ruta) { await socket.sendMessage(chatId, { text: texto }); return; }
 
@@ -936,7 +936,7 @@ async function enviarChat(chatId, { texto = '', ruta = null, nombre = '', tipo =
     const salida = `${ruta}.ogg`;
     try {
       await ffmpeg(['-i', ruta, '-vn', '-c:a', 'libopus', '-b:a', '32k', '-ac', '1', '-ar', '48000', salida]);
-      await socket.sendMessage(chatId, { audio: fs.readFileSync(salida), mimetype: 'audio/ogg; codecs=opus', ptt: true });
+      await socket.sendMessage(chatId, { audio: fs.readFileSync(salida), mimetype: 'audio/ogg; codecs=opus', ptt: true, ...(verUnaVez ? { viewOnce: true } : {}) });
     } finally { borrarSilencioso(salida); }
     return;
   }

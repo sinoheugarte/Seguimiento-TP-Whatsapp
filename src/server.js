@@ -401,7 +401,7 @@ app.post('/api/chat/enviar', chatUpload.single('archivo'), async (req, res) => {
   if (!texto && !req.file) return res.status(400).json({ error: 'texto o archivo son requeridos' });
   try {
     const [archivo] = req.file ? procesarArchivos([req.file]) : [];
-    await enviarChat(chatId, { texto, tipo, ruta: archivo ? path.resolve('media', archivo) : null, nombre: archivo || '' });
+    await enviarChat(chatId, { texto, tipo, verUnaVez: req.body.verUnaVez === '1', ruta: archivo ? path.resolve('media', archivo) : null, nombre: archivo || '' });
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

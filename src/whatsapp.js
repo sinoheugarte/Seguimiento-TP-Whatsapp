@@ -314,8 +314,8 @@ async function inicializar() {
     }
   });
 
-  // Carga masiva inicial: contactos + chats individuales
-  socket.ev.on('messaging-history.set', ({ contacts = [], chats = [] }) => {
+  // Carga masiva inicial: contactos + chats + mensajes históricos de WhatsApp
+  socket.ev.on('messaging-history.set', async ({ contacts = [], chats = [], messages = [] }) => {
     for (const c of contacts) procesarContacto(c);
     for (const c of chats) {
       if (!c.id || !esContactoPrivado(c.id)) continue;
@@ -325,6 +325,15 @@ async function inicializar() {
     }
     guardarContactosCache();
     log(`Contactos tras historial: ${contactosCache.size}`);
+
+    // Guardar mensajes históricos que llegan al conectar (syncFullHistory)
+    if (messages.length > 0) {
+      log(`Procesando ${messages.length} mensajes históricos de WhatsApp...`);
+      for (const msg of messages) {
+        try { await guardarMensaje(msg); } catch (_) {}
+      }
+      log(`Historial cargado: ${mensajesStore.size} chats en memoria`);
+    }
   });
 
   // Actualizaciones en tiempo real

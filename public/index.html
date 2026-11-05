@@ -2063,7 +2063,12 @@ async function cargarEstado() {
     const masLogout = document.getElementById('mas-logout');
     if (masLogout) masLogout.style.display = estado.whatsapp ? 'flex' : 'none';
     if (!estado.whatsapp) mostrarQR();
-    else document.getElementById('qr-modal').style.display = 'none';
+    else {
+      document.getElementById('qr-modal').style.display = 'none';
+      // Si WhatsApp está conectado pero el banner sigue pidiendo QR, refrescar su estado
+      const fase = document.getElementById('sync-banner')?.dataset.fase;
+      if (fase === 'qr' || fase === 'conectando') cargarSyncInicial();
+    }
   } catch(err) {
     console.error('[Estado] Error al cargar:', err);
     const pill = document.getElementById('wa-pill');

@@ -428,7 +428,13 @@ app.post('/api/chat/evento', async (req, res) => {
 });
 
 function iniciar(puerto) {
-  app.listen(puerto, () => console.log(`✓ Panel web disponible en http://localhost:${puerto}`));
+  return new Promise((resolve, reject) => {
+    const srv = app.listen(puerto, () => {
+      console.log(`✓ Panel web disponible en http://localhost:${puerto}`);
+      resolve(srv);
+    });
+    srv.on('error', reject);
+  });
 }
 
 module.exports = { iniciar };

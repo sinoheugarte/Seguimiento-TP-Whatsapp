@@ -1,4 +1,4 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, downloadMediaMessage, jidNormalizedUser, proto } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, downloadMediaMessage, jidNormalizedUser, proto, normalizeMessageContent } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
@@ -547,25 +547,26 @@ async function guardarMensaje(msg, { descargarMedia = true, emitirSSE = true } =
   if (!chatId || chatId === 'status@broadcast') return;
   const m = msg.message || {};
 
-  // Ignorar mensajes no visibles: reacciones, eliminaciones, distribución de claves, etc.
-  if (m.protocolMessage || m.reactionMessage || m.senderKeyDistributionMessage ||
-      m.retryRequestMessage || m.appStateSyncKeyShare) return;
+  // Desenvolver envoltorios (efímeros, ver una vez, doc con texto, editados, álbumes…)
+  const mc = normalizeMessageContent(m) || m;
+
+  // Ignorar mensajes no visibles: reacciones, eliminaciones, ediciones, claves, fijados, contenedores de álbum
+  if (mc.protocolMessage || mc.reactionMessage || mc.senderKeyDistributionMessage ||
+      mc.retryRequestMessage || mc.appStateSyncKeyShare || mc.pinInChatMessage ||
+      mc.keepInChatMessage || mc.albumMessage || mc.pollUpdateMessage || mc.encReactionMessage ||
+      mc.messageHistoryBundle || mc.placeholderMessage) return;
+  const tiposVisibles = Object.keys(mc).filter(k => k !== 'messageContextInfo' && k !== 'senderKeyDistributionMessage');
+  if (!tiposVisibles.length) return;
 
   aprenderDeMensaje(msg);
-
-  // Desenvolver mensajes "envoltorio" (efímeros, ver-una-vez, doc con caption, etc.)
-  const mc = m.ephemeralMessage?.message ||
-             m.viewOnceMessage?.message ||
-             m.viewOnceMessageV2?.message?.message ||
-             m.documentWithCaptionMessage?.message ||
-             m;
 
   let texto = mc.conversation || mc.extendedTextMessage?.text ||
     mc.imageMessage?.caption || mc.videoMessage?.caption ||
     mc.documentMessage?.caption || '';
 
   if (!texto) {
-    if (mc.stickerMessage)             texto = '[Sticker]';
+    if (mc.stickerMessage || mc.lottieStickerMessage) texto = '[Sticker]';
+    else if (mc.ptvMessage)            texto = '';
     else if (mc.locationMessage)       texto = '📍 Ubicación compartida';
     else if (mc.liveLocationMessage)   texto = '📍 Ubicación en vivo';
     else if (mc.contactMessage)        texto = `👤 ${mc.contactMessage.displayName || 'Contacto'}`;
@@ -585,7 +586,7 @@ async function guardarMensaje(msg, { descargarMedia = true, emitirSSE = true } =
   let mediaTipo = null;
   let mediaPath = null;
   const tieneImagen = !!(mc.imageMessage || mc.stickerMessage);
-  const tieneVideo  = !!mc.videoMessage;
+  const tieneVideo  = !!(mc.videoMessage || mc.ptvMessage);
   const tieneAudio  = !!mc.audioMessage;
   const tieneDoc    = !!mc.documentMessage;
   if (tieneImagen || tieneVideo || tieneAudio || tieneDoc) {
@@ -650,7 +651,10 @@ async function guardarMensaje(msg, { descargarMedia = true, emitirSSE = true } =
     mediaTipo === 'video'     ? '🎥 Video' :
     mediaTipo === 'audio'     ? '🎤 Audio' :
     mediaTipo === 'documento' ? `📄 ${mc.documentMessage?.fileName || 'Documento'}` :
-    '[Mensaje]'
+    mc.callLogMesssage || mc.bcallMessage ? '📞 Llamada' :
+    mc.requestPhoneNumberMessage ? '📞 Solicitud de número' :
+    mc.newsletterAdminInviteMessage ? '📢 Invitación a canal' :
+    'Mensaje'
   );
   const previo = chatsRecientes.get(chatId);
   if (!previo || ts >= (previo.ts || 0)) {
@@ -685,8 +689,32 @@ function limpiarCredenciales(conservar) {
 }
 
 let _directorioCargado = false;
+let _generacion = 0;
+let _timerReconexion = null;
+
+function programarReconexion(ms) {
+  clearTimeout(_timerReconexion);
+  _timerReconexion = setTimeout(() => {
+    _timerReconexion = null;
+    inicializar().catch(e => log(`Error al reconectar: ${e.message}`));
+  }, ms);
+}
+
+// Cierra la conexión anterior sin que sus eventos sigan afectando a la app
+function descartarSocket() {
+  const viejo = socket;
+  socket = null;
+  if (!viejo) return;
+  try { viejo.ev.removeAllListeners(); } catch (_) {}
+  try { viejo.end(undefined); } catch (_) {}
+}
 
 async function inicializar() {
+  clearTimeout(_timerReconexion);
+  _timerReconexion = null;
+  const gen = ++_generacion;
+  descartarSocket();
+  listo = false;
   if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR, { recursive: true });
   if (!_directorioCargado) {
     cargarContactosDescoCache();
@@ -697,6 +725,7 @@ async function inicializar() {
 
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
   const { version } = await fetchLatestBaileysVersion();
+  if (gen !== _generacion) return; // otra reconexión empezó mientras tanto
 
   socket = makeWASocket({
     version,
@@ -709,7 +738,10 @@ async function inicializar() {
 
   socket.ev.on('creds.update', saveCreds);
 
+  const vigente = () => gen === _generacion;
+
   socket.ev.on('connection.update', (update) => {
+    if (!vigente()) return;
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
@@ -748,12 +780,12 @@ async function inicializar() {
         log('Sesión cerrada (loggedOut). Limpiando credenciales...');
         limpiarCredenciales(['contacts-cache.json', 'messages-cache.json']);
         setSync({ fase: 'conectando', texto: 'Sesión cerrada — generando nuevo QR…', pct: null });
-        setTimeout(inicializar, 3000);
+        programarReconexion(3000);
       } else {
         _reconectarIntentos++;
         log(`Reconectando en ${delay / 1000}s (intento ${_reconectarIntentos})...`);
         setSync({ fase: 'conectando', texto: `Reconectando en ${Math.round(delay / 1000)} s…`, pct: null, procesados: 0, total: 0 });
-        setTimeout(inicializar, delay);
+        programarReconexion(delay);
       }
     }
   });
@@ -880,7 +912,8 @@ async function inicializar() {
 
   return new Promise((resolve) => {
     const check = setInterval(() => {
-      if (listo) { clearInterval(check); resolve(socket); }
+      if (!vigente()) { clearInterval(check); resolve(null); }
+      else if (listo) { clearInterval(check); resolve(socket); }
     }, 500);
   });
 }
@@ -1086,11 +1119,13 @@ function estaListo() { return listo; }
 async function cerrarSesion() {
   listo = false;
   ultimoQR = null;
+  _generacion++; // ignorar el evento de cierre de esta conexión: aquí se reconecta una sola vez
   try { if (socket) await socket.logout(); } catch (_) {}
-  socket = null;
+  descartarSocket();
   limpiarCredenciales(['contacts-cache.json']);
   log('Sesión cerrada manualmente. Generando nuevo QR...');
-  setTimeout(inicializar, 1500);
+  setSync({ fase: 'conectando', texto: 'Sesión cerrada — generando nuevo QR…', pct: null, procesados: 0, total: 0 });
+  programarReconexion(1500);
 }
 
 module.exports = {

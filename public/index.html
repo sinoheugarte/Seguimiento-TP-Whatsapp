@@ -633,6 +633,19 @@
       background: var(--elev); color: var(--ink-2); font-size: 12.5px; font-weight: 500; box-shadow: 0 1px .5px rgba(0,0,0,.25);
     }
     .dia { display: flex; flex-direction: column; flex: none; }
+    .msg-autor[data-jid] { cursor: pointer; border-radius: 4px; }
+    .msg-autor[data-jid]:hover { text-decoration: underline; text-underline-offset: 2px; }
+    .color-pop { position: fixed; z-index: 320; width: 248px; padding: 14px; border-radius: 18px; background: var(--elev); border: 1px solid var(--line); box-shadow: 0 18px 50px rgba(0,0,0,.55); display: none; transform-origin: 20px 0; }
+    .color-pop.open { display: block; animation: epIn .3s var(--ease-ios); }
+    .color-pop h4 { font-size: 13px; font-weight: 500; color: var(--ink-2); margin-bottom: 4px; }
+    .color-pop .cp-nombre { font-size: 15px; font-weight: 600; margin-bottom: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cp-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+    .cp-sw { aspect-ratio: 1; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: transform .15s var(--ease-ios); position: relative; }
+    .cp-sw:hover { transform: scale(1.12); }
+    .cp-sw.sel { border-color: var(--ink); box-shadow: 0 0 0 2px var(--elev) inset; }
+    .cp-auto { margin-top: 12px; width: 100%; height: 36px; border-radius: 18px; border: 1px solid var(--line-strong); background: transparent; color: var(--ink); cursor: pointer; font-size: 13.5px; }
+    .cp-auto:hover { background: var(--elev2); }
+    .cp-auto.sel { border-color: var(--wa-green); color: var(--wa-green); }
     .mencion { color: var(--link); font-weight: 500; }
     .msg-row { display: flex; margin-top: 2px; padding: 0 8px; }
     .msg-row.first { margin-top: 10px; }
@@ -2027,6 +2040,14 @@
     <input type="text" id="ep-search-input" placeholder="Buscar emoji" oninput="filtrarEmojis(this.value)" autocomplete="off">
   </label>
   <div class="ep-scroll" id="ep-grid"></div>
+</div>
+
+<!-- Selector de color de un integrante -->
+<div id="color-pop" class="color-pop" role="dialog" aria-label="Color del nombre">
+  <h4>Color del nombre</h4>
+  <div class="cp-nombre" id="cp-nombre"></div>
+  <div class="cp-grid" id="cp-grid"></div>
+  <button class="cp-auto" id="cp-auto" type="button" onclick="elegirColorAutor(null)">Automático</button>
 </div>
 
 <!-- Ventana modal genérica (contacto, encuesta, evento, cámara) -->
@@ -4517,6 +4538,9 @@ function _beginIntroAnimation(scr, _au) {
       area.innerHTML = '';
       _ultimoMsgRender = null;
       _coloresChat.clear();
+      // Primero los colores elegidos a mano, para que los automáticos no los repitan
+      _coloresFijos = new Set();
+      for (const m of msgs) if (m.autorColor && m.autorId) { _coloresChat.set(m.autorId, m.autorColor); _coloresFijos.add(m.autorId); }
       _pendientesAbajo = 0;
       _actualizarJump();
       if (!msgs.length) {
@@ -4602,9 +4626,10 @@ function _beginIntroAnimation(scr, _au) {
     const esGrupo = (msg.chatId || _chatActual || '').endsWith('@g.us');
     const hora = new Date(ts).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
     const grp = esGrupo && !msg.fromMe;
-    const color = grp ? _colorAutor(autorId) : '';
+    if (grp && msg.autorColor) _coloresChat.set(autorId, msg.autorColor);
+    const color = grp ? (msg.autorColor || _colorAutor(autorId)) : '';
     const autorHtml = (grp && !continua && msg.autor)
-      ? `<div class="msg-autor-row"><div class="msg-autor" style="color:${color}">${escHtml(msg.autor)}</div>${msg.autorAlias ? `<span class="msg-alias">~ ${escHtml(msg.autorAlias)}</span>` : ''}</div>` : '';
+      ? `<div class="msg-autor-row"><div class="msg-autor" style="color:${color}"${msg.autorId ? ` data-jid="${escHtml(msg.autorId)}" title="Cambiar color" onclick="abrirColorAutor(event)"` : ''}>${escHtml(msg.autor)}</div>${msg.autorAlias ? `<span class="msg-alias">~ ${escHtml(msg.autorAlias)}</span>` : ''}</div>` : '';
     const fotoAutor = (grp && !continua && msg.autorId)
       ? `<div class="msg-av">${avatarHtml({ chatId: msg.autorId, nombre: msg.autorAlias || msg.autor, esGrupo: false, fotoV: msg.autorFotoV ?? null }, 'xs')}</div>` : '';
     const row = document.createElement('div');
@@ -4712,6 +4737,39 @@ function _beginIntroAnimation(scr, _au) {
     return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
 
+
+  // ═══════════════ COLOR DE NOMBRE POR INTEGRANTE ═══════════════
+  let _cpJid = null;
+  function abrirColorAutor(ev) {
+    ev.stopPropagation();
+    const el = ev.currentTarget;
+    _cpJid = el.dataset.jid;
+    const actual = _coloresChat.get(_cpJid);
+    const fijo = el.closest('.msg-row') && _mensajeConColorFijo(_cpJid);
+    document.getElementById('cp-nombre').textContent = el.textContent;
+    document.getElementById('cp-nombre').style.color = actual || '';
+    document.getElementById('cp-grid').innerHTML = _COLORES_AUTOR.map(c =>
+      `<button type="button" class="cp-sw${fijo && c === actual ? ' sel' : ''}" style="background:${c}" title="${c}" onclick="elegirColorAutor('${c}')"></button>`).join('');
+    document.getElementById('cp-auto').classList.toggle('sel', !fijo);
+    const pop = document.getElementById('color-pop');
+    pop.classList.add('open');
+    const r = el.getBoundingClientRect();
+    pop.style.left = Math.min(r.left, window.innerWidth - pop.offsetWidth - 8) + 'px';
+    pop.style.top = (r.bottom + pop.offsetHeight + 8 > window.innerHeight ? Math.max(8, r.top - pop.offsetHeight - 6) : r.bottom + 6) + 'px';
+  }
+  let _coloresFijos = new Set();
+  function _mensajeConColorFijo(jid) { return _coloresFijos.has(jid); }
+  function cerrarColorAutor() { document.getElementById('color-pop')?.classList.remove('open'); _cpJid = null; }
+  async function elegirColorAutor(color) {
+    const jid = _cpJid;
+    cerrarColorAutor();
+    if (!jid) return;
+    try {
+      await _postChat('/api/chat/color-autor', { jid, color });
+      if (_chatActual) await cargarMensajesChat(_chatActual, true);
+    } catch (e) { toast(false, e.message); }
+  }
+  document.addEventListener('click', (e) => { if (!e.target.closest('#color-pop')) cerrarColorAutor(); });
 
   // ═══════════════ COMPOSITOR: adjuntos, voz, modales, llamada ═══════════════
 
@@ -5089,6 +5147,7 @@ function _beginIntroAnimation(scr, _au) {
 
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
+    if (document.getElementById('color-pop').classList.contains('open')) { cerrarColorAutor(); e.stopImmediatePropagation(); return; }
     if (document.getElementById('wa-modal').classList.contains('open')) { cerrarModal(); e.stopImmediatePropagation(); return; }
     if (document.getElementById('attach-menu').classList.contains('open')) { cerrarAdjuntos(); document.getElementById('attach-btn').focus(); e.stopImmediatePropagation(); return; }
     if (document.getElementById('emoji-picker').classList.contains('open')) { cerrarEmoji(); e.stopImmediatePropagation(); return; }

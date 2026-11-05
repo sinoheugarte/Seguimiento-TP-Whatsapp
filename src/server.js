@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion, getMensajesStore, listarChats, setSseBroadcast, setHandoff, isHandoff, getSyncEstado, obtenerFotoPerfil, enviarChat, enviarContacto, enviarEncuesta, enviarEvento, infoChat, mensajesDe } = require('./whatsapp');
+const { enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion, getMensajesStore, listarChats, setSseBroadcast, setHandoff, isHandoff, getSyncEstado, obtenerFotoPerfil, enviarChat, enviarContacto, enviarEncuesta, enviarEvento, infoChat, mensajesDe, setColorAutor } = require('./whatsapp');
 const qrcode = require('qrcode');
 const { enviarCorreo } = require('./email');
 const { ejecutarProgramacion, iniciarProgramaciones, detenerTodo } = require('./scheduler');
@@ -383,6 +383,12 @@ app.get('/api/chat/foto/:chatId', async (req, res) => {
 
 app.get('/api/chat/mensajes/:chatId', (req, res) => {
   res.json(mensajesDe(req.params.chatId));
+});
+
+app.post('/api/chat/color-autor', (req, res) => {
+  const { jid, color } = req.body || {};
+  try { setColorAutor(jid, color || null); res.json({ ok: true }); }
+  catch (err) { res.status(400).json({ error: err.message }); }
 });
 
 app.get('/api/chat/info/:chatId', async (req, res) => {

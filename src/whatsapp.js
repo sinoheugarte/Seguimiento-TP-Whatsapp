@@ -41,6 +41,7 @@ const AUTH_DIR = path.resolve('.baileys_auth');
 const CONTACTS_FILE = path.resolve('.baileys_auth', 'contacts-cache.json');
 const MESSAGES_CACHE_FILE = path.resolve('.baileys_auth', 'messages-cache.json');
 const AVATAR_DIR = path.resolve('.baileys_auth', 'avatars');
+const COLORES_FILE = path.resolve('.baileys_auth', 'colores-autores.json');
 const CHAT_MEDIA_DIR = path.resolve(__dirname, '../public/chat-media');
 
 function log(msg) {
@@ -244,13 +245,40 @@ function esYo(jid) {
   return j === normJid(u.id) || (!!u.lid && j === normJid(u.lid));
 }
 
+// Colores de nombre elegidos por el usuario (por persona, válidos en todos los grupos)
+let coloresAutores = {};
+try { coloresAutores = JSON.parse(fs.readFileSync(COLORES_FILE, 'utf8')) || {}; } catch (_) {}
+
+function clavePersona(jid) {
+  jid = normJid(jid);
+  return (jid?.endsWith('@lid') && lidToJid.get(jid)) || jid;
+}
+
+function colorDe(jid) {
+  if (!jid) return null;
+  const j = normJid(jid);
+  return coloresAutores[clavePersona(j)] || coloresAutores[j] ||
+    (j.endsWith('@s.whatsapp.net') && jidToLid.get(j) ? coloresAutores[jidToLid.get(j)] : null) || null;
+}
+
+function setColorAutor(jid, color) {
+  if (!jid || !/^[\w.:-]+@(lid|s\.whatsapp\.net)$/.test(jid)) throw new Error('Integrante inválido');
+  if (color != null && !/^#[0-9a-f]{6}$/i.test(color)) throw new Error('Color inválido');
+  const j = normJid(jid);
+  for (const k of [j, clavePersona(j), jidToLid.get(j)]) if (k) delete coloresAutores[k];
+  if (color) coloresAutores[clavePersona(j)] = color.toLowerCase();
+  fs.mkdirSync(path.dirname(COLORES_FILE), { recursive: true });
+  fs.writeFileSync(COLORES_FILE, JSON.stringify(coloresAutores), 'utf8');
+}
+
 function autorInfo(jid, push = '') {
   const { nombre, prio } = nombreYPrio(jid);
   const numero = numeroDe(jid);
   const alias = push || (prio < 3 ? nombre : '');
-  if (prio >= 2 && nombre) return { autor: nombre, autorAlias: '', autorFotoV: versionFoto(jid) };
-  if (numero) return { autor: numero, autorAlias: alias && alias !== numero ? alias : '', autorFotoV: versionFoto(jid) };
-  return { autor: `~ ${alias || String(jid || '').split('@')[0]}`, autorAlias: '', autorFotoV: versionFoto(jid) };
+  const comun = { autorFotoV: versionFoto(jid), autorColor: colorDe(jid) };
+  if (prio >= 2 && nombre) return { autor: nombre, autorAlias: '', ...comun };
+  if (numero) return { autor: numero, autorAlias: alias && alias !== numero ? alias : '', ...comun };
+  return { autor: `~ ${alias || String(jid || '').split('@')[0]}`, autorAlias: '', ...comun };
 }
 
 function procesarContacto(c) {
@@ -1172,5 +1200,5 @@ module.exports = {
   inicializar, enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion,
   getMensajesStore: () => mensajesStore, getChatsRecientes, listarChats, setSseBroadcast,
   setHandoff, isHandoff, getSyncEstado, obtenerFotoPerfil,
-  enviarChat, enviarContacto, enviarEncuesta, enviarEvento, infoChat, mensajesDe
+  enviarChat, enviarContacto, enviarEncuesta, enviarEvento, infoChat, mensajesDe, setColorAutor
 };

@@ -3308,6 +3308,7 @@ function _beginIntroAnimation(scr, _au) {
         const data = JSON.parse(e.data);
         if (data.tipo === 'mensaje') onNuevoMensajeSSE(data);
         else if (data.tipo === 'handoff') onHandoffSSE(data);
+        else if (data.tipo === 'historial_listo') cargarChatsLista();
       } catch (_) {}
     };
     _sseConn.onerror = () => {

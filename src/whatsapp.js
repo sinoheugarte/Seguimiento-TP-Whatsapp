@@ -137,7 +137,7 @@ function procesarContacto(c) {
   guardarContactosCache();
 }
 
-async function guardarMensaje(msg, { descargarMedia = true } = {}) {
+async function guardarMensaje(msg, { descargarMedia = true, emitirSSE = true } = {}) {
   const chatId = msg.key.remoteJid;
   if (!chatId || chatId === 'status@broadcast') return;
   const m = msg.message || {};
@@ -240,7 +240,7 @@ async function guardarMensaje(msg, { descargarMedia = true } = {}) {
     '[Mensaje]'
   );
   chatsRecientes.set(chatId, { chatId, nombre, ultimo: ultimoTexto, ts, esGrupo: chatId.endsWith('@g.us') });
-  if (_sseBroadcast) _sseBroadcast({ tipo: 'mensaje', ...msgObj, chatNombre: nombre });
+  if (emitirSSE && _sseBroadcast) _sseBroadcast({ tipo: 'mensaje', ...msgObj, chatNombre: nombre });
   guardarMensajesCache();
   return msgObj;
 }
@@ -348,13 +348,15 @@ async function inicializar() {
       if (!contactosCache.has(cid)) contactosCache.set(cid, msg.pushName);
     }
 
-    // Guardar mensajes históricos SIN descargar medios (evita bloquear la conexión)
+    // Guardar mensajes históricos: sin media, sin SSE individual (evita saturar el navegador)
     if (messages.length > 0) {
       log(`Procesando ${messages.length} mensajes históricos de WhatsApp...`);
       for (const msg of messages) {
-        try { await guardarMensaje(msg, { descargarMedia: false }); } catch (_) {}
+        try { await guardarMensaje(msg, { descargarMedia: false, emitirSSE: false }); } catch (_) {}
       }
       log(`Historial cargado: ${mensajesStore.size} chats en memoria`);
+      // Un solo evento SSE para que el frontend recargue la lista
+      if (_sseBroadcast) _sseBroadcast({ tipo: 'historial_listo', chats: mensajesStore.size });
     }
   });
 

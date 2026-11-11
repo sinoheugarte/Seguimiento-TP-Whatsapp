@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const P = require('pino');
 const { execFile } = require('child_process');
-const { procesarMensaje } = require('./agent');
+const { procesarMensaje, limpiarHistorial } = require('./agent');
 
 const CONFIG_PATH = path.resolve(__dirname, '../config.json');
 function leerConfig() { return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')); }
@@ -42,6 +42,7 @@ const CONTACTS_FILE = path.resolve('.baileys_auth', 'contacts-cache.json');
 const MESSAGES_CACHE_FILE = path.resolve('.baileys_auth', 'messages-cache.json');
 const AVATAR_DIR = path.resolve('.baileys_auth', 'avatars');
 const COLORES_FILE = path.resolve('.baileys_auth', 'colores-autores.json');
+const CUENTA_FILE = path.resolve('.baileys_auth', 'cuenta.json');
 const CHAT_MEDIA_DIR = path.resolve(__dirname, '../public/chat-media');
 
 function log(msg) {
@@ -734,6 +735,41 @@ async function guardarMensaje(msg, { descargarMedia = true, emitirSSE = true } =
   return msgObj;
 }
 
+// ── Cambio de número vinculado ──────────────────────────────────────────────
+// Si se escanea el QR con otro teléfono, los chats, contactos, fotos y colores del
+// número anterior no deben mezclarse con los del nuevo.
+
+function borrarDatosCuentaAnterior() {
+  clearTimeout(_saveTimer);
+  clearTimeout(_saveMsgsTimer);
+  for (const m of [contactosCache, contactosPrio, lidToJid, jidToLid, gruposNombres, mensajesStore, chatsRecientes,
+    presencias, metaGrupos, suscritos, rondasHistorial]) m.clear();
+  for (const c of [handoffChats, gruposFallidos, historialPedido, chatsConAutorNuevo]) c.clear();
+  coloresAutores = {};
+  _gruposTs = 0;
+  for (const f of [CONTACTS_FILE, MESSAGES_CACHE_FILE, COLORES_FILE]) borrarSilencioso(f);
+  try { fs.rmSync(AVATAR_DIR, { recursive: true, force: true }); } catch (_) {}
+  try { for (const f of fs.readdirSync(CHAT_MEDIA_DIR)) borrarSilencioso(path.join(CHAT_MEDIA_DIR, f)); } catch (_) {}
+  try { limpiarHistorial(); } catch (_) {}
+  emitir({ tipo: 'cuenta_cambiada' });
+}
+
+function verificarCuenta() {
+  const actual = normJid(socket?.user?.id);
+  if (!actual) return;
+  let previa = null;
+  try { previa = JSON.parse(fs.readFileSync(CUENTA_FILE, 'utf8')).numero || null; } catch (_) {}
+  if (previa === actual) return;
+  if (previa) {
+    log(`Se vinculó otro número (${formatearNumero(actual)}; antes ${formatearNumero(previa)}). Borrando chats, contactos y fotos del anterior…`);
+    borrarDatosCuentaAnterior();
+  }
+  try {
+    fs.mkdirSync(path.dirname(CUENTA_FILE), { recursive: true });
+    fs.writeFileSync(CUENTA_FILE, JSON.stringify({ numero: actual, desde: new Date().toISOString() }), 'utf8');
+  } catch (_) {}
+}
+
 // ── Conexión ────────────────────────────────────────────────────────────────
 
 function limpiarCredenciales(conservar) {
@@ -819,6 +855,7 @@ async function inicializar() {
       ultimoQR = null;
       _reconectarIntentos = 0;
       log('Conectado correctamente ✓');
+      verificarCuenta();
       setSync({ fase: 'resolviendo', texto: 'Sincronizando chats…', procesados: 0, total: 0, pct: null });
       refrescarGrupos(true).finally(() => programarResolucion(3000));
     }
@@ -836,7 +873,7 @@ async function inicializar() {
       if (isLoggedOut) {
         _reconectarIntentos = 0;
         log('Sesión cerrada (loggedOut). Limpiando credenciales...');
-        limpiarCredenciales(['contacts-cache.json', 'messages-cache.json', 'colores-autores.json']);
+        limpiarCredenciales(['contacts-cache.json', 'messages-cache.json', 'colores-autores.json', 'cuenta.json']);
         setSync({ fase: 'conectando', texto: 'Sesión cerrada — generando nuevo QR…', pct: null });
         programarReconexion(3000);
       } else {
@@ -1190,7 +1227,7 @@ async function cerrarSesion() {
   _generacion++; // ignorar el evento de cierre de esta conexión: aquí se reconecta una sola vez
   try { if (socket) await socket.logout(); } catch (_) {}
   descartarSocket();
-  limpiarCredenciales(['contacts-cache.json', 'colores-autores.json']);
+  limpiarCredenciales(['contacts-cache.json', 'colores-autores.json', 'cuenta.json']);
   log('Sesión cerrada manualmente. Generando nuevo QR...');
   setSync({ fase: 'conectando', texto: 'Sesión cerrada — generando nuevo QR…', pct: null, procesados: 0, total: 0 });
   programarReconexion(1500);

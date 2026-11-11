@@ -4168,6 +4168,7 @@ function _beginIntroAnimation(scr, _au) {
       else if (data.tipo === 'sync') onSync(data);
       else if (data.tipo === 'nombres') programarRecargaChats();
       else if (data.tipo === 'presencia') onPresenciaSSE(data);
+      else if (data.tipo === 'cuenta_cambiada') onCuentaCambiada();
       else if (data.tipo === 'mensajes_actualizados' && data.chatId === _chatActual) cargarMensajesChat(data.chatId, true);
     };
     _sseConn.onerror = () => {
@@ -4556,6 +4557,18 @@ function _beginIntroAnimation(scr, _au) {
       if (info.presencia) _presencias.set(chatId, info.presencia);
       _pintarSubtitulo();
     } catch (_) {}
+  }
+
+  function onCuentaCambiada() {
+    _chatsData = [];
+    _unreadCounts.clear();
+    _handoffChats.clear();
+    _presencias.clear();
+    _fotoEstado.clear();
+    if (_chatActual) volverListaChat();
+    renderChatsLista();
+    cargarEstado();
+    toast(true, 'Se vinculó otro número: se borraron los chats y contactos del anterior');
   }
 
   function onPresenciaSSE(data) {

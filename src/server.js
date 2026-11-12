@@ -2,99 +2,140 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { enviarMensaje, listarGrupos, estaListo } = require('./whatsapp');
+const { enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, cerrarSesion, getMensajesStore, listarChats, setSseBroadcast, setHandoff, isHandoff, getSyncEstado, obtenerFotoPerfil, enviarChat, enviarContacto, enviarEncuesta, enviarEvento, infoChat, mensajesDe, setColorAutor } = require('./whatsapp');
+const qrcode = require('qrcode');
 const { enviarCorreo } = require('./email');
-const { ejecutarProgramacion } = require('./scheduler');
-const config = require('../config.json');
+const { ejecutarProgramacion, iniciarProgramaciones, detenerTodo } = require('./scheduler');
+const { limpiarHistorial, estadoBaseConocimiento } = require('./agent');
+
+const CONFIG_PATH = path.resolve(__dirname, '../config.json');
+const KNOWLEDGE_DIR = path.resolve(__dirname, '../knowledge');
+
+function leerConfig() { return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')); }
+function guardarConfig(cfg) {
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2), 'utf8');
+  detenerTodo();
+  iniciarProgramaciones();
+}
 
 const app = express();
 const upload = multer({ dest: 'media/' });
 
+const sseClientes = [];
+function sseEnviar(data) {
+  const payload = `data: ${JSON.stringify(data)}\n\n`;
+  for (let i = sseClientes.length - 1; i >= 0; i--) {
+    try { sseClientes[i].write(payload); }
+    catch (_) { sseClientes.splice(i, 1); }
+  }
+}
+setSseBroadcast(sseEnviar);
+
 app.use(express.json());
+app.set('trust proxy', 'loopback');
+require('./auth').registrar(app);
 app.use(express.static(path.join(__dirname, '../public')));
 
-// Estado del sistema
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+function procesarArchivos(files) {
+  if (!files || files.length === 0) return [];
+  return files.map(f => {
+    const nombreSeguro = path.basename(f.originalname).replace(/[^\w.\-áéíóúüñÁÉÍÓÚÜÑ ]/g, '_');
+    let destino = path.join('media', nombreSeguro);
+    if (fs.existsSync(destino)) {
+      const ext = path.extname(nombreSeguro);
+      const base = nombreSeguro.slice(0, -ext.length || undefined);
+      destino = path.join('media', `${base}_${Date.now()}${ext}`);
+    }
+    fs.renameSync(f.path, destino);
+    return path.basename(destino);
+  });
+}
+
+// ── WhatsApp logout ───────────────────────────────────────────────────────────
+app.post('/api/whatsapp/logout', async (req, res) => {
+  try {
+    await cerrarSesion();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── QR ───────────────────────────────────────────────────────────────────────
+app.get('/api/qr', async (req, res) => {
+  const qr = getUltimoQR();
+  if (!qr) return res.status(404).json({ error: estaListo() ? 'ya_conectado' : 'sin_qr' });
+  const buffer = await qrcode.toBuffer(qr);
+  res.set('Content-Type', 'image/png');
+  res.send(buffer);
+});
+
+// ── Estado ───────────────────────────────────────────────────────────────────
 app.get('/api/estado', async (req, res) => {
-  const grupos = estaListo() ? await listarGrupos() : [];
+  const config = leerConfig();
+  const conectado = estaListo();
+  const grupos = conectado ? await listarGrupos() : [];
+  const contactos = conectado ? listarContactos() : [];
   res.json({
-    whatsapp: estaListo(),
+    whatsapp: conectado,
     grupos,
+    contactos,
     gruposConfig: config.whatsapp.grupos,
     destinatariosEmail: config.email.destinatarios,
     programaciones: config.programaciones
   });
 });
 
-// Envio manual de WhatsApp
-app.post('/api/whatsapp/enviar', upload.single('foto'), async (req, res) => {
+// ── WhatsApp ─────────────────────────────────────────────────────────────────
+app.post('/api/whatsapp/enviar', upload.array('archivos', 20), async (req, res) => {
   const { chatId, mensaje } = req.body;
   if (!chatId || !mensaje) return res.status(400).json({ error: 'chatId y mensaje son requeridos' });
-
   try {
-    const nombreFoto = req.file ? path.basename(req.file.path) : null;
-    // Renombrar con extension original si hay archivo
-    if (req.file) {
-      const ext = path.extname(req.file.originalname) || '.jpg';
-      const nuevoNombre = req.file.filename + ext;
-      fs.renameSync(req.file.path, path.join('media', nuevoNombre));
-      await enviarMensaje(chatId, mensaje, nuevoNombre);
-    } else {
-      await enviarMensaje(chatId, mensaje, null);
-    }
+    const archivos = procesarArchivos(req.files);
+    await enviarMensaje(chatId, mensaje, archivos);
     res.json({ ok: true, mensaje: 'Mensaje enviado correctamente' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Envio manual de email
-app.post('/api/email/enviar', upload.single('foto'), async (req, res) => {
+// ── Email ────────────────────────────────────────────────────────────────────
+app.post('/api/email/enviar', upload.array('archivos', 20), async (req, res) => {
   const { para, asunto, cuerpo } = req.body;
   if (!para || !asunto || !cuerpo) return res.status(400).json({ error: 'para, asunto y cuerpo son requeridos' });
-
   try {
-    let nombreFoto = null;
-    if (req.file) {
-      const ext = path.extname(req.file.originalname) || '.jpg';
-      nombreFoto = req.file.filename + ext;
-      fs.renameSync(req.file.path, path.join('media', nombreFoto));
-    }
-    const destinatarios = para.split(',').map((d) => d.trim());
-    await enviarCorreo({ para: destinatarios, asunto, cuerpo, rutaFoto: nombreFoto });
+    const archivos = procesarArchivos(req.files);
+    const destinatarios = para.split(',').map(d => d.trim());
+    await enviarCorreo({ para: destinatarios, asunto, cuerpo, archivos });
     res.json({ ok: true, mensaje: 'Correo enviado correctamente' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Envio combinado (WhatsApp + Email a la vez)
-app.post('/api/enviar-todo', upload.single('foto'), async (req, res) => {
+// ── Envio combinado ──────────────────────────────────────────────────────────
+app.post('/api/enviar-todo', upload.array('archivos', 20), async (req, res) => {
   const { chatsIds, emailsPara, asunto, mensaje } = req.body;
   const resultados = { whatsapp: [], email: [], errores: [] };
 
-  let nombreFoto = null;
-  if (req.file) {
-    const ext = path.extname(req.file.originalname) || '.jpg';
-    nombreFoto = req.file.filename + ext;
-    fs.renameSync(req.file.path, path.join('media', nombreFoto));
-  }
+  const archivos = procesarArchivos(req.files);
 
-  // WhatsApp
   const ids = chatsIds ? JSON.parse(chatsIds) : [];
   for (const chatId of ids) {
     try {
-      await enviarMensaje(chatId, mensaje, nombreFoto);
+      await enviarMensaje(chatId, mensaje, archivos);
       resultados.whatsapp.push({ chatId, ok: true });
     } catch (err) {
       resultados.errores.push({ canal: 'whatsapp', chatId, error: err.message });
     }
   }
 
-  // Email
   const emailsDest = emailsPara ? JSON.parse(emailsPara) : [];
   if (emailsDest.length > 0) {
     try {
-      await enviarCorreo({ para: emailsDest, asunto: asunto || mensaje.slice(0, 60), cuerpo: mensaje, rutaFoto: nombreFoto });
+      await enviarCorreo({ para: emailsDest, asunto: asunto || mensaje.slice(0, 60), cuerpo: mensaje, archivos });
       resultados.email.push({ para: emailsDest, ok: true });
     } catch (err) {
       resultados.errores.push({ canal: 'email', error: err.message });
@@ -104,17 +145,429 @@ app.post('/api/enviar-todo', upload.single('foto'), async (req, res) => {
   res.json(resultados);
 });
 
-// Disparar una programacion manualmente
+// ── Programaciones ───────────────────────────────────────────────────────────
 app.post('/api/programaciones/:id/ejecutar', async (req, res) => {
-  const prog = config.programaciones.find((p) => p.id === req.params.id);
-  if (!prog) return res.status(404).json({ error: 'Programacion no encontrada' });
+  const config = leerConfig();
+  const prog = config.programaciones.find(p => p.id === req.params.id);
+  if (!prog) return res.status(404).json({ error: 'No encontrada' });
   const errores = await ejecutarProgramacion(prog);
   res.json({ ok: errores.length === 0, errores });
 });
 
+app.post('/api/programaciones', (req, res) => {
+  try {
+    const config = leerConfig();
+    const nueva = { ...req.body, id: 'prog-' + Date.now() };
+    config.programaciones.push(nueva);
+    guardarConfig(config);
+    res.json({ ok: true, programacion: nueva });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/programaciones/:id', (req, res) => {
+  try {
+    const config = leerConfig();
+    const idx = config.programaciones.findIndex(p => p.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'No encontrada' });
+    config.programaciones[idx] = { ...config.programaciones[idx], ...req.body };
+    guardarConfig(config);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/programaciones/:id', (req, res) => {
+  try {
+    const config = leerConfig();
+    config.programaciones = config.programaciones.filter(p => p.id !== req.params.id);
+    guardarConfig(config);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Media upload ─────────────────────────────────────────────────────────────
+app.post('/api/media/upload', upload.array('archivos', 20), (req, res) => {
+  try {
+    const archivos = procesarArchivos(req.files);
+    res.json({ ok: true, archivos });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Ajustes: Grupos de correo ─────────────────────────────────────────────────
+app.post('/api/ajustes/grupos-email', (req, res) => {
+  try {
+    const config = leerConfig();
+    const { nombre, direcciones } = req.body;
+    const nuevo = { id: 'ge-' + Date.now(), nombre, direcciones };
+    config.email.destinatarios.push(nuevo);
+    guardarConfig(config);
+    res.json({ ok: true, grupo: nuevo });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/ajustes/grupos-email/:id', (req, res) => {
+  try {
+    const config = leerConfig();
+    const idx = config.email.destinatarios.findIndex(g => g.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'No encontrado' });
+    config.email.destinatarios[idx] = { ...config.email.destinatarios[idx], ...req.body };
+    guardarConfig(config);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/ajustes/grupos-email/:id', (req, res) => {
+  try {
+    const config = leerConfig();
+    config.email.destinatarios = config.email.destinatarios.filter(g => g.id !== req.params.id);
+    guardarConfig(config);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Agente IA ─────────────────────────────────────────────────────────────────
+const uploadKnowledge = multer({ dest: 'knowledge/' });
+
+function listarDocumentosKnowledge() {
+  if (!fs.existsSync(KNOWLEDGE_DIR)) return [];
+  return fs.readdirSync(KNOWLEDGE_DIR)
+    .filter(f => !f.startsWith('.'))
+    .map(f => {
+      const stat = fs.statSync(path.join(KNOWLEDGE_DIR, f));
+      return { nombre: f, tamaño: stat.size, fecha: stat.mtime };
+    });
+}
+
+// Modelos de chat disponibles en Gemini o Groq para una clave (la ingresada o la guardada)
+app.post('/api/agente/modelos', async (req, res) => {
+  const { proveedor } = req.body || {};
+  const apiKey = (req.body?.apiKey || leerConfig().agente?.apiKeys?.[proveedor] || '').trim();
+  if (!['gemini', 'groq'].includes(proveedor)) return res.status(400).json({ error: 'Proveedor no compatible' });
+  if (!apiKey) return res.status(400).json({ error: 'Ingresa primero la API key' });
+  try {
+    let modelos = [];
+    if (proveedor === 'gemini') {
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': apiKey } });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) return res.status(400).json({ error: d.error?.message || `Google respondió ${r.status}` });
+      modelos = (d.models || [])
+        .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+        .map(m => ({ id: String(m.name || '').replace(/^models\//, ''), nombre: m.displayName }))
+        .filter(m => /^gemini-[\d.]+-(flash|pro)/.test(m.id) && !/tts|image|audio|live|embedding|exp|preview|thinking|vision/i.test(m.id));
+    } else {
+      const r = await fetch('https://api.groq.com/openai/v1/models', { headers: { Authorization: `Bearer ${apiKey}` } });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) return res.status(400).json({ error: d.error?.message || `Groq respondió ${r.status}` });
+      modelos = (d.data || [])
+        .filter(m => m.active !== false && !/whisper|tts|guard|playai|orpheus|distil/i.test(m.id))
+        .map(m => ({ id: m.id, nombre: m.id }));
+    }
+    modelos.sort((a, b) => a.id.localeCompare(b.id));
+    res.json({ modelos });
+  } catch (err) {
+    res.status(502).json({ error: `No se pudo contactar al proveedor: ${err.message}` });
+  }
+});
+
+app.get('/api/agente', (req, res) => {
+  try {
+    const config = leerConfig();
+    const agente = config.agente || {};
+    const documentos = listarDocumentosKnowledge();
+    res.json({ ...agente, documentos });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Carpetas de consulta de la Base de Conocimiento ─────────────────────────
+// El explorador de Windows solo puede abrirse en la misma PC donde corre la aplicación
+const selectorNativoDisponible = (req) => process.platform === 'win32' && require('./auth').esLocal(req);
+
+app.get('/api/agente/carpetas', async (req, res) => {
+  try { res.json({ ...(await estadoBaseConocimiento(req.query.forzar === '1')), selectorNativo: selectorNativoDisponible(req) }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Abre el cuadro "Buscar carpeta" de Windows y devuelve la ruta elegida
+let _selectorAbierto = false;
+app.post('/api/agente/carpetas/explorador-windows', (req, res) => {
+  if (!selectorNativoDisponible(req)) return res.status(400).json({ error: 'El explorador de Windows solo está disponible en la PC donde corre la aplicación' });
+  if (_selectorAbierto) return res.status(409).json({ error: 'Ya hay una ventana de selección abierta en la PC (puede estar detrás del navegador)' });
+  _selectorAbierto = true;
+  const script = [
+    "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8",
+    "Add-Type -AssemblyName System.Windows.Forms",
+    "$f = New-Object System.Windows.Forms.Form",
+    "$f.TopMost = $true",
+    "$d = New-Object System.Windows.Forms.FolderBrowserDialog",
+    "$d.Description = 'Elige la carpeta que consultará la IA de Seguimiento TP'",
+    "$d.ShowNewFolderButton = $false",
+    "if ($d.ShowDialog($f) -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $d.SelectedPath }",
+    "$f.Dispose()"
+  ].join('; ');
+  require('child_process').execFile('powershell.exe', ['-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-Command', script],
+    { timeout: 10 * 60e3, windowsHide: true, encoding: 'utf8' }, (err, stdout) => {
+      _selectorAbierto = false;
+      if (err) return res.status(500).json({ error: 'No se pudo abrir el explorador de Windows: ' + err.message.slice(0, 120) });
+      const ruta = String(stdout || '').trim().split(/\r?\n/).pop();
+      res.json(ruta ? { ruta } : { cancelado: true });
+    });
+});
+
+// Explorador dentro del panel: lista solo subcarpetas (nunca contenido de archivos)
+app.get('/api/agente/explorar', (req, res) => {
+  const os = require('os');
+  const pedida = String(req.query.ruta || '').trim();
+  if (!pedida) {
+    const raices = [];
+    const agregar = (nombre, ruta) => { try { if (ruta && fs.statSync(ruta).isDirectory() && !raices.some(r => r.ruta === ruta)) raices.push({ nombre, ruta }); } catch (_) {} };
+    agregar('Carpeta personal', os.homedir());
+    agregar('Escritorio', path.join(os.homedir(), 'Desktop'));
+    agregar('Documentos', path.join(os.homedir(), 'Documents'));
+    agregar('OneDrive', process.env.OneDriveCommercial || process.env.OneDrive);
+    if (process.platform === 'win32') {
+      for (const letra of 'CDEFGHIJKLMNOPQRSTUVWXYZ') agregar(`Unidad ${letra}:`, `${letra}:\\`);
+    } else agregar('Raíz del sistema', '/');
+    return res.json({ ruta: '', padre: null, carpetas: raices, inicio: true });
+  }
+  const ruta = path.resolve(pedida);
+  let entradas;
+  try { entradas = fs.readdirSync(ruta, { withFileTypes: true }); }
+  catch (err) { return res.status(400).json({ error: err.code === 'EACCES' || err.code === 'EPERM' ? 'Sin permiso para abrir esta carpeta' : 'No se encontró la carpeta' }); }
+  const carpetas = entradas
+    .filter(e => e.isDirectory() && !e.name.startsWith('.') && !e.name.startsWith('$') && !/^(System Volume Information|node_modules)$/i.test(e.name))
+    .map(e => ({ nombre: e.name, ruta: path.join(ruta, e.name) }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }))
+    .slice(0, 1000);
+  const archivos = entradas.filter(e => e.isFile()).length;
+  const padre = path.dirname(ruta);
+  res.json({ ruta, padre: padre !== ruta ? padre : '', carpetas, archivos });
+});
+
+app.post('/api/agente/carpetas', async (req, res) => {
+  try {
+    const entrada = String(req.body?.ruta || '').trim().replace(/^"(.*)"$/, '$1');
+    if (!entrada) return res.status(400).json({ error: 'Escribe la ruta de la carpeta' });
+    const ruta = path.resolve(entrada);
+    let st = null;
+    try { st = fs.statSync(ruta); } catch (_) {}
+    if (!st) return res.status(400).json({ error: `No se encontró la carpeta «${ruta}» en el equipo donde corre la aplicación` });
+    if (!st.isDirectory()) return res.status(400).json({ error: 'La ruta indicada es un archivo, no una carpeta' });
+    const config = leerConfig();
+    config.agente = config.agente || {};
+    const lista = config.agente.carpetasConocimiento || [];
+    if (lista.some(c => c.toLowerCase() === ruta.toLowerCase())) return res.status(400).json({ error: 'Esa carpeta ya está agregada' });
+    config.agente.carpetasConocimiento = [...lista, ruta];
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf8');
+    res.json(await estadoBaseConocimiento(true));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/agente/carpetas', async (req, res) => {
+  try {
+    const ruta = String(req.body?.ruta || '');
+    const config = leerConfig();
+    config.agente = config.agente || {};
+    config.agente.carpetasConocimiento = (config.agente.carpetasConocimiento || []).filter(c => c !== ruta);
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf8');
+    res.json(await estadoBaseConocimiento(true));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/agente/config', (req, res) => {
+  try {
+    const config = leerConfig();
+    if (!config.agente) config.agente = {};
+    const { activo, apiKey, apiKeys, modelo, proveedor, instruccionesExtra, prefijoActivacion, filtro, chatsFiltros } = req.body;
+    if (activo !== undefined) config.agente.activo = activo;
+    if (apiKeys !== undefined) config.agente.apiKeys = apiKeys;
+    else if (apiKey !== undefined) config.agente.apiKey = apiKey; // compatibilidad
+    if (modelo !== undefined) config.agente.modelo = modelo;
+    if (proveedor !== undefined) config.agente.proveedor = proveedor;
+    if (instruccionesExtra !== undefined) config.agente.instruccionesExtra = instruccionesExtra;
+    if (prefijoActivacion !== undefined) config.agente.prefijoActivacion = prefijoActivacion;
+    if (filtro !== undefined) config.agente.filtro = filtro;
+    if (chatsFiltros !== undefined) config.agente.chatsFiltros = chatsFiltros;
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf8');
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/agente/respuestas-rapidas', (req, res) => {
+  try {
+    const config = leerConfig();
+    if (!config.agente) config.agente = {};
+    if (!config.agente.respuestasRapidas) config.agente.respuestasRapidas = [];
+    const nueva = { id: 'rr-' + Date.now(), activa: true, ...req.body };
+    config.agente.respuestasRapidas.push(nueva);
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf8');
+    res.json({ ok: true, respuestaRapida: nueva });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/agente/respuestas-rapidas/:id', (req, res) => {
+  try {
+    const config = leerConfig();
+    const lista = config.agente?.respuestasRapidas || [];
+    const idx = lista.findIndex(r => r.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'No encontrada' });
+    lista[idx] = { ...lista[idx], ...req.body };
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf8');
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/agente/respuestas-rapidas/:id', (req, res) => {
+  try {
+    const config = leerConfig();
+    if (config.agente?.respuestasRapidas) {
+      config.agente.respuestasRapidas = config.agente.respuestasRapidas.filter(r => r.id !== req.params.id);
+    }
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf8');
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/agente/documentos', uploadKnowledge.array('documentos', 10), (req, res) => {
+  try {
+    if (!fs.existsSync(KNOWLEDGE_DIR)) fs.mkdirSync(KNOWLEDGE_DIR, { recursive: true });
+    const guardados = [];
+    for (const f of (req.files || [])) {
+      const nombreSeguro = path.basename(f.originalname).replace(/[^\w.\-áéíóúüñÁÉÍÓÚÜÑ ]/g, '_');
+      let destino = path.join(KNOWLEDGE_DIR, nombreSeguro);
+      if (fs.existsSync(destino)) {
+        const ext = path.extname(nombreSeguro);
+        const base = nombreSeguro.slice(0, -ext.length || undefined);
+        destino = path.join(KNOWLEDGE_DIR, `${base}_${Date.now()}${ext}`);
+      }
+      fs.renameSync(f.path, destino);
+      guardados.push(path.basename(destino));
+    }
+    res.json({ ok: true, documentos: guardados });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/agente/documentos/:nombre', (req, res) => {
+  try {
+    const filepath = path.join(KNOWLEDGE_DIR, path.basename(req.params.nombre));
+    if (fs.existsSync(filepath)) fs.unlinkSync(filepath);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/agente/limpiar-historial', (req, res) => {
+  try {
+    limpiarHistorial(req.body?.chatId || null);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Chat en Vivo — Handoff ────────────────────────────────────────────────────
+app.post('/api/chat/handoff', (req, res) => {
+  const { chatId, activo } = req.body;
+  if (!chatId) return res.status(400).json({ error: 'chatId requerido' });
+  setHandoff(chatId, !!activo);
+  res.json({ ok: true, chatId, activo: !!activo });
+});
+
+app.get('/api/chat/handoff/:chatId', (req, res) => {
+  res.json({ activo: isHandoff(req.params.chatId) });
+});
+
+// ── Chat en Vivo ──────────────────────────────────────────────────────────────
+app.get('/api/chat/sse', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+  // Estado actual de la sincronización para el cliente recién conectado
+  res.write(`data: ${JSON.stringify({ tipo: 'sync', ...getSyncEstado() })}\n\n`);
+  sseClientes.push(res);
+  const hb = setInterval(() => { try { res.write(': ping\n\n'); } catch (_) {} }, 25000);
+  req.on('close', () => {
+    clearInterval(hb);
+    const idx = sseClientes.indexOf(res);
+    if (idx !== -1) sseClientes.splice(idx, 1);
+  });
+});
+
+app.get('/api/chat/chats', (req, res) => {
+  res.json(listarChats());
+});
+
+app.get('/api/chat/sync', (req, res) => {
+  res.json(getSyncEstado());
+});
+
+const JID_VALIDO = /^[\w.:-]+@(s\.whatsapp\.net|lid|g\.us)$/;
+app.get('/api/chat/foto/:chatId', async (req, res) => {
+  const { chatId } = req.params;
+  if (!JID_VALIDO.test(chatId)) return res.status(400).end();
+  try {
+    const archivo = await obtenerFotoPerfil(chatId);
+    if (!archivo) return res.status(404).set('Cache-Control', 'no-store').end();
+    res.set('Cache-Control', 'private, max-age=604800, immutable');
+    res.type('image/jpeg').sendFile(archivo);
+  } catch (_) { res.status(404).end(); }
+});
+
+app.get('/api/chat/mensajes/:chatId', (req, res) => {
+  res.json(mensajesDe(req.params.chatId));
+});
+
+app.post('/api/chat/color-autor', (req, res) => {
+  const { jid, color } = req.body || {};
+  try { setColorAutor(jid, color || null); res.json({ ok: true }); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+app.get('/api/chat/info/:chatId', async (req, res) => {
+  if (!JID_VALIDO.test(req.params.chatId)) return res.status(400).json({ error: 'chatId inválido' });
+  try { res.json(await infoChat(req.params.chatId)); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+const chatUpload = multer({ dest: 'media/', limits: { fileSize: 100 * 1024 * 1024 } });
+const TIPOS_CHAT = ['auto', 'documento', 'ptt', 'sticker'];
+app.post('/api/chat/enviar', chatUpload.single('archivo'), async (req, res) => {
+  const { chatId } = req.body;
+  const texto = req.body.texto || '';
+  const tipo = TIPOS_CHAT.includes(req.body.tipo) ? req.body.tipo : 'auto';
+  if (!chatId) return res.status(400).json({ error: 'chatId es requerido' });
+  if (!texto && !req.file) return res.status(400).json({ error: 'texto o archivo son requeridos' });
+  try {
+    const [archivo] = req.file ? procesarArchivos([req.file]) : [];
+    await enviarChat(chatId, { texto, tipo, verUnaVez: req.body.verUnaVez === '1', ruta: archivo ? path.resolve('media', archivo) : null, nombre: archivo || '' });
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/chat/contacto', async (req, res) => {
+  const { chatId, nombre, numero } = req.body || {};
+  if (!chatId) return res.status(400).json({ error: 'chatId es requerido' });
+  try { await enviarContacto(chatId, nombre, numero); res.json({ ok: true }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/chat/encuesta', async (req, res) => {
+  const { chatId, pregunta, opciones, multiple } = req.body || {};
+  if (!chatId) return res.status(400).json({ error: 'chatId es requerido' });
+  try { await enviarEncuesta(chatId, pregunta, opciones, !!multiple); res.json({ ok: true }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/chat/evento', async (req, res) => {
+  const { chatId, ...evento } = req.body || {};
+  if (!chatId) return res.status(400).json({ error: 'chatId es requerido' });
+  try { await enviarEvento(chatId, evento); res.json({ ok: true }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 function iniciar(puerto) {
-  app.listen(puerto, () => {
-    console.log(`✓ Panel web disponible en http://localhost:${puerto}`);
+  return new Promise((resolve, reject) => {
+    const srv = app.listen(puerto, () => {
+      console.log(`✓ Panel web disponible en http://localhost:${puerto}`);
+      resolve(srv);
+    });
+    srv.on('error', reject);
   });
 }
 

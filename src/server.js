@@ -6,7 +6,7 @@ const { enviarMensaje, listarGrupos, listarContactos, estaListo, getUltimoQR, ce
 const qrcode = require('qrcode');
 const { enviarCorreo } = require('./email');
 const { ejecutarProgramacion, iniciarProgramaciones, detenerTodo } = require('./scheduler');
-const { limpiarHistorial } = require('./agent');
+const { limpiarHistorial, estadoBaseConocimiento } = require('./agent');
 
 const CONFIG_PATH = path.resolve(__dirname, '../config.json');
 const KNOWLEDGE_DIR = path.resolve(__dirname, '../knowledge');
@@ -274,6 +274,42 @@ app.get('/api/agente', (req, res) => {
     const agente = config.agente || {};
     const documentos = listarDocumentosKnowledge();
     res.json({ ...agente, documentos });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Carpetas de consulta de la Base de Conocimiento ─────────────────────────
+app.get('/api/agente/carpetas', async (req, res) => {
+  try { res.json(await estadoBaseConocimiento(req.query.forzar === '1')); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/agente/carpetas', async (req, res) => {
+  try {
+    const entrada = String(req.body?.ruta || '').trim().replace(/^"(.*)"$/, '$1');
+    if (!entrada) return res.status(400).json({ error: 'Escribe la ruta de la carpeta' });
+    const ruta = path.resolve(entrada);
+    let st = null;
+    try { st = fs.statSync(ruta); } catch (_) {}
+    if (!st) return res.status(400).json({ error: `No se encontró la carpeta «${ruta}» en el equipo donde corre la aplicación` });
+    if (!st.isDirectory()) return res.status(400).json({ error: 'La ruta indicada es un archivo, no una carpeta' });
+    const config = leerConfig();
+    config.agente = config.agente || {};
+    const lista = config.agente.carpetasConocimiento || [];
+    if (lista.some(c => c.toLowerCase() === ruta.toLowerCase())) return res.status(400).json({ error: 'Esa carpeta ya está agregada' });
+    config.agente.carpetasConocimiento = [...lista, ruta];
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf8');
+    res.json(await estadoBaseConocimiento(true));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/agente/carpetas', async (req, res) => {
+  try {
+    const ruta = String(req.body?.ruta || '');
+    const config = leerConfig();
+    config.agente = config.agente || {};
+    config.agente.carpetasConocimiento = (config.agente.carpetasConocimiento || []).filter(c => c !== ruta);
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf8');
+    res.json(await estadoBaseConocimiento(true));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

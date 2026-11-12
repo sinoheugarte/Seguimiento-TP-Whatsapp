@@ -16,7 +16,14 @@ async function cargarTextoDocumento(filepath) {
   const ext = path.extname(filepath).toLowerCase();
 
   // Texto plano
-  if (['.txt', '.md', '.sql', '.csv'].includes(ext)) return fs.readFileSync(filepath, 'utf8');
+  if (['.txt', '.md', '.sql', '.csv', '.json', '.xml'].includes(ext)) return fs.readFileSync(filepath, 'utf8');
+
+  // Páginas web: solo el texto visible
+  if (ext === '.html' || ext === '.htm') {
+    return fs.readFileSync(filepath, 'utf8')
+      .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+  }
 
   // PDF
   if (ext === '.pdf') {
@@ -64,21 +71,118 @@ async function cargarTextoDocumento(filepath) {
   return '';
 }
 
-async function buildSystemPrompt(agente) {
-  let docs = '';
+// ── Base de conocimiento: documentos subidos + carpetas de consulta ─────────
+// Todo se envía en cada mensaje, así que hay un tope: ~350.000 caracteres (~90.000 tokens),
+// por debajo de los 100.000 tokens donde Claude Haiku 5.5 sube su tarifa.
+const LIMITE_CARACTERES = 350000;
+const MAX_ARCHIVOS_POR_CARPETA = 500;
+const MAX_TAMANO_ARCHIVO = 25 * 1024 * 1024;
+const PROFUNDIDAD_MAX = 6;
+const EXT_CARPETAS = new Set(['.txt', '.md', '.sql', '.csv', '.json', '.xml', '.html', '.htm', '.pdf', '.docx', '.xlsx', '.xls', '.pptx', '.ppt']);
+const REESCANEO_MS = 20000;
+
+// Texto ya extraído por archivo: solo se vuelve a procesar si cambió (fecha o tamaño)
+const cacheTextos = new Map();
+async function textoDeArchivo(ruta, st) {
+  const previo = cacheTextos.get(ruta);
+  if (previo && previo.mtimeMs === st.mtimeMs && previo.size === st.size) return previo.texto;
+  let texto = '';
+  try { texto = String(await cargarTextoDocumento(ruta) || ''); } catch (_) {}
+  texto = texto.replace(/\r\n?/g, '\n').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  cacheTextos.set(ruta, { mtimeMs: st.mtimeMs, size: st.size, texto });
+  return texto;
+}
+
+function listarArchivosCarpeta(carpeta) {
+  const archivos = [];
+  let omitidos = 0;
+  const visitar = (dir, nivel) => {
+    let entradas;
+    try { entradas = fs.readdirSync(dir, { withFileTypes: true }); } catch (_) { return; }
+    entradas.sort((a, b) => a.name.localeCompare(b.name, 'es'));
+    for (const e of entradas) {
+      if (e.name.startsWith('.') || e.name.startsWith('~$')) continue;
+      const ruta = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        if (nivel < PROFUNDIDAD_MAX && !/^(node_modules|\$recycle\.bin|system volume information)$/i.test(e.name)) visitar(ruta, nivel + 1);
+      } else if (e.isFile() && EXT_CARPETAS.has(path.extname(e.name).toLowerCase())) {
+        if (archivos.length >= MAX_ARCHIVOS_POR_CARPETA) omitidos++;
+        else archivos.push(ruta);
+      }
+    }
+  };
+  visitar(carpeta, 0);
+  return { archivos, omitidos };
+}
+
+let _base = { ts: 0, clave: '', texto: '', estado: [], total: 0 };
+
+async function construirBaseConocimiento(carpetas = [], forzar = false) {
+  const clave = JSON.stringify(carpetas);
+  if (!forzar && _base.clave === clave && Date.now() - _base.ts < REESCANEO_MS) return _base;
+  const partes = [];
+  let total = 0;
+  const agregar = (titulo, texto) => {
+    if (!texto) return 'vacio';
+    const bloque = `\n\n=== ${titulo} ===\n${texto}`;
+    if (total + bloque.length > LIMITE_CARACTERES) return 'limite';
+    partes.push(bloque);
+    total += bloque.length;
+    return 'ok';
+  };
+
+  // 1) Documentos subidos desde el panel (tienen prioridad dentro del límite)
   if (fs.existsSync(KNOWLEDGE_DIR)) {
-    for (const f of fs.readdirSync(KNOWLEDGE_DIR).filter(f => !f.startsWith('.'))) {
-      const texto = await cargarTextoDocumento(path.join(KNOWLEDGE_DIR, f));
-      if (texto.trim()) docs += `\n\n=== ${f} ===\n${texto.trim()}`;
+    for (const f of fs.readdirSync(KNOWLEDGE_DIR).filter(f => !f.startsWith('.')).sort()) {
+      const ruta = path.join(KNOWLEDGE_DIR, f);
+      let st; try { st = fs.statSync(ruta); } catch (_) { continue; }
+      if (st.isFile()) agregar(f, await textoDeArchivo(ruta, st));
     }
   }
+
+  // 2) Carpetas de consulta, con sus subcarpetas
+  const estado = [];
+  for (const carpeta of carpetas) {
+    const e = { ruta: carpeta, existe: false, archivos: 0, incluidos: 0, caracteres: 0, sinTexto: 0, porLimite: 0, porCantidad: 0 };
+    try { e.existe = fs.statSync(carpeta).isDirectory(); } catch (_) {}
+    if (e.existe) {
+      const { archivos, omitidos } = listarArchivosCarpeta(carpeta);
+      e.archivos = archivos.length + omitidos;
+      e.porCantidad = omitidos;
+      const nombreCarpeta = path.basename(carpeta) || carpeta;
+      for (const ruta of archivos) {
+        let st; try { st = fs.statSync(ruta); } catch (_) { continue; }
+        if (st.size > MAX_TAMANO_ARCHIVO) { e.sinTexto++; continue; }
+        const texto = await textoDeArchivo(ruta, st);
+        const rel = path.relative(carpeta, ruta).split(path.sep).join('/');
+        const r = agregar(`Carpeta ${nombreCarpeta} › ${rel}`, texto);
+        if (r === 'ok') { e.incluidos++; e.caracteres += texto.length; }
+        else if (r === 'vacio') e.sinTexto++;
+        else e.porLimite++;
+      }
+    }
+    estado.push(e);
+  }
+  _base = { ts: Date.now(), clave, texto: partes.join(''), estado, total };
+  return _base;
+}
+
+// Para el panel: qué se está leyendo de cada carpeta
+async function estadoBaseConocimiento(forzar = false) {
+  const { agente = {} } = leerConfig();
+  const b = await construirBaseConocimiento(agente.carpetasConocimiento || [], forzar);
+  return { carpetas: b.estado, totalCaracteres: b.total, tokensAprox: Math.round(b.total / 4), limiteCaracteres: LIMITE_CARACTERES };
+}
+
+async function buildSystemPrompt(agente) {
+  const { texto: docs } = await construirBaseConocimiento(agente.carpetasConocimiento || []);
   return [
     'Eres un coordinador profesional de servicio de transporte de carga.',
     'Atiendes consultas de clientes y socios de manera profesional, clara y concisa.',
     'Eres amable, eficiente y orientado a resolver las necesidades del cliente.',
     'Cuando no tienes información suficiente, lo indicas amablemente.',
     'Responde siempre en el mismo idioma del usuario.',
-    docs ? `\n\nBase de conocimiento de la empresa:${docs}` : '',
+    docs ? `\n\nBase de conocimiento de la empresa (documentos y carpetas de consulta; usa esta información para responder y no inventes datos que no estén aquí):${docs}` : '',
     agente.instruccionesExtra ? `\nInstrucciones adicionales:\n${agente.instruccionesExtra}` : ''
   ].filter(Boolean).join('\n');
 }
@@ -263,4 +367,4 @@ function limpiarHistorial(chatId) {
   else conversationHistory.clear();
 }
 
-module.exports = { procesarMensaje, limpiarHistorial };
+module.exports = { procesarMensaje, limpiarHistorial, estadoBaseConocimiento };

@@ -634,6 +634,17 @@
     }
     .dia { display: flex; flex-direction: column; flex: none; }
     .kb-uso { margin: 16px 0 6px; }
+    .wa-modal.explorador { max-width: 620px; }
+    .expl-barra { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+    .expl-barra .wm-input { padding: 10px 12px; font-size: 14px; }
+    .expl-lista { border: 1px solid var(--line-strong); border-radius: 14px; overflow: hidden; max-height: min(52vh, 440px); overflow-y: auto; }
+    .expl-item { width: 100%; display: flex; align-items: center; gap: 12px; padding: 11px 14px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--ink); font-size: 14.5px; text-align: left; cursor: pointer; transition: background .12s; }
+    .expl-item:last-child { border-bottom: 0; }
+    .expl-item:hover, .expl-item:focus-visible { background: var(--elev2); outline: none; }
+    .expl-item svg { flex: none; color: #ffbc38; }
+    .expl-item span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .expl-item .chev { color: var(--ink-3); }
+    .expl-vacio { padding: 26px; text-align: center; color: var(--ink-2); font-size: 14px; }
     .kb-uso-txt { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--ink-2); margin-bottom: 6px; }
     .kb-uso-track { height: 6px; border-radius: 3px; background: var(--elev2); overflow: hidden; }
     .kb-uso-bar { height: 100%; border-radius: 3px; background: var(--wa-green); transition: width .5s var(--ease-out); }
@@ -2007,6 +2018,10 @@
           <div class="card-desc">La IA leerá siempre los archivos de estas carpetas y sus subcarpetas para responder. Si un archivo cambia o agregas uno nuevo, lo toma en cuenta en los siguientes mensajes. Escribe o pega la ruta tal como aparece en el Explorador de Windows, por ejemplo <strong>C:\Compartido\Tarifas</strong> o <strong>\\servidor\Operaciones</strong>.</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <input type="text" id="carpeta-ruta" class="wm-input" style="flex:1;min-width:220px" placeholder="C:\Compartido\Tarifas" spellcheck="false" onkeydown="if(event.key==='Enter')agregarCarpeta()">
+            <button class="btn btn-ghost btn-sm" id="btn-buscar-carpeta" onclick="buscarCarpeta()">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+              Buscar carpeta…
+            </button>
             <button class="btn btn-accent btn-sm" id="btn-agregar-carpeta" onclick="agregarCarpeta()">Agregar carpeta</button>
           </div>
           <div class="kb-uso" id="kb-uso"></div>
@@ -3950,9 +3965,12 @@ async function cargarCarpetas(forzar = false) {
   } catch (_) {}
 }
 
+let _selectorNativo = false;
+
 function renderCarpetas(d) {
   const lista = document.getElementById('lista-carpetas');
   if (!lista || !d || !d.carpetas) return;
+  if (d.selectorNativo !== undefined) _selectorNativo = !!d.selectorNativo;
   const pct = Math.min(100, Math.round(100 * (d.totalCaracteres || 0) / (d.limiteCaracteres || 1)));
   document.getElementById('kb-uso').innerHTML = `<div class="kb-uso-txt"><span>Base de conocimiento en uso: ~${(d.tokensAprox || 0).toLocaleString('es')} tokens por mensaje</span><span>${pct}% del máximo</span></div><div class="kb-uso-track"><div class="kb-uso-bar${pct >= 80 ? ' alto' : ''}" style="width:${pct}%"></div></div>`;
   if (!d.carpetas.length) { lista.innerHTML = '<div class="lista-vacia" style="margin-top:10px">Aún no agregaste carpetas</div>'; return; }
@@ -3971,6 +3989,77 @@ function renderCarpetas(d) {
       <button class="btn btn-ghost btn-sm" data-ruta="${escHTML(c.ruta)}" onclick="quitarCarpeta(this.dataset.ruta)" title="Quitar carpeta">Quitar</button>
     </div>`;
   }).join('');
+}
+
+// ── Buscar carpeta: explorador de Windows (en esta PC) o explorador del panel ──
+async function buscarCarpeta() {
+  if (!_selectorNativo) { abrirExplorador(); return; }
+  const btn = document.getElementById('btn-buscar-carpeta');
+  const texto = btn.innerHTML;
+  btn.disabled = true; btn.textContent = 'Esperando selección…';
+  toast(true, 'Se abrió la ventana de Windows para elegir la carpeta (si no la ves, búscala en la barra de tareas)');
+  try {
+    const r = await fetch('/api/agente/carpetas/explorador-windows', { method: 'POST' });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'No se pudo abrir el explorador de Windows');
+    if (d.ruta) { document.getElementById('carpeta-ruta').value = d.ruta; await agregarCarpeta(); }
+  } catch (e) {
+    toast(false, e.message + ' — se abre el explorador del panel');
+    abrirExplorador();
+  }
+  btn.disabled = false; btn.innerHTML = texto;
+}
+
+let _expl = { ruta: '', padre: '', inicio: true };
+const _ICO_CARPETA = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z"/></svg>';
+
+function abrirExplorador(inicial = '') {
+  _abrirModal('Elegir carpeta',
+    `<div class="expl-barra">
+       <button class="icon-btn" id="expl-subir" onclick="_explSubir()" title="Subir un nivel" aria-label="Subir un nivel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+       <button class="icon-btn" onclick="_explIr('')" title="Inicio" aria-label="Inicio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></button>
+       <input class="wm-input" id="expl-ruta" spellcheck="false" placeholder="Escribe una ruta y presiona Enter" onkeydown="if(event.key==='Enter')_explIr(this.value)">
+     </div>
+     <div class="expl-lista" id="expl-lista"><div class="expl-vacio">Cargando…</div></div>`,
+    `<span class="hint" id="expl-info" style="flex:1;margin:0"></span>
+     <button class="btn btn-ghost btn-sm" onclick="cerrarModal()">Cancelar</button>
+     <button class="btn btn-accent btn-sm" id="expl-elegir" onclick="_explElegir()">Elegir esta carpeta</button>`, 'explorador');
+  document.getElementById('expl-lista').addEventListener('click', (e) => {
+    const b = e.target.closest('.expl-item');
+    if (b) _explIr(b.dataset.ruta);
+  });
+  _explIr(inicial || document.getElementById('carpeta-ruta').value.trim());
+}
+
+async function _explIr(ruta) {
+  const lista = document.getElementById('expl-lista');
+  if (!lista) return;
+  try {
+    const r = await fetch('/api/agente/explorar?ruta=' + encodeURIComponent(ruta || ''));
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'No se pudo abrir');
+    _expl = { ruta: d.ruta, padre: d.padre, inicio: !!d.inicio };
+    document.getElementById('expl-ruta').value = d.ruta;
+    document.getElementById('expl-subir').disabled = _expl.inicio;
+    document.getElementById('expl-elegir').disabled = _expl.inicio;
+    document.getElementById('expl-info').textContent = _expl.inicio ? 'Elige una unidad o carpeta para empezar' : `${d.carpetas.length} carpeta${d.carpetas.length === 1 ? '' : 's'} · ${d.archivos} archivo${d.archivos === 1 ? '' : 's'} aquí`;
+    lista.innerHTML = d.carpetas.length
+      ? d.carpetas.map(c => `<button class="expl-item" data-ruta="${escHTML(c.ruta)}">${_ICO_CARPETA}<span>${escHTML(c.nombre)}</span><svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></button>`).join('')
+      : '<div class="expl-vacio">No hay subcarpetas aquí. Puedes elegir esta carpeta.</div>';
+    lista.scrollTop = 0;
+  } catch (e) {
+    toast(false, e.message);
+    if (ruta) _explIr('');
+  }
+}
+
+function _explSubir() { if (!_expl.inicio) _explIr(_expl.padre || ''); }
+
+async function _explElegir() {
+  if (_expl.inicio || !_expl.ruta) return;
+  document.getElementById('carpeta-ruta').value = _expl.ruta;
+  cerrarModal();
+  await agregarCarpeta();
 }
 
 async function agregarCarpeta() {

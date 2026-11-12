@@ -170,4 +170,4 @@ function registrar(app) {
   });
 }
 
-module.exports = { registrar };
+module.exports = { registrar, esLocal };

@@ -278,9 +278,68 @@ app.get('/api/agente', (req, res) => {
 });
 
 // ── Carpetas de consulta de la Base de Conocimiento ─────────────────────────
+// El explorador de Windows solo puede abrirse en la misma PC donde corre la aplicación
+const selectorNativoDisponible = (req) => process.platform === 'win32' && require('./auth').esLocal(req);
+
 app.get('/api/agente/carpetas', async (req, res) => {
-  try { res.json(await estadoBaseConocimiento(req.query.forzar === '1')); }
+  try { res.json({ ...(await estadoBaseConocimiento(req.query.forzar === '1')), selectorNativo: selectorNativoDisponible(req) }); }
   catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Abre el cuadro "Buscar carpeta" de Windows y devuelve la ruta elegida
+let _selectorAbierto = false;
+app.post('/api/agente/carpetas/explorador-windows', (req, res) => {
+  if (!selectorNativoDisponible(req)) return res.status(400).json({ error: 'El explorador de Windows solo está disponible en la PC donde corre la aplicación' });
+  if (_selectorAbierto) return res.status(409).json({ error: 'Ya hay una ventana de selección abierta en la PC (puede estar detrás del navegador)' });
+  _selectorAbierto = true;
+  const script = [
+    "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8",
+    "Add-Type -AssemblyName System.Windows.Forms",
+    "$f = New-Object System.Windows.Forms.Form",
+    "$f.TopMost = $true",
+    "$d = New-Object System.Windows.Forms.FolderBrowserDialog",
+    "$d.Description = 'Elige la carpeta que consultará la IA de Seguimiento TP'",
+    "$d.ShowNewFolderButton = $false",
+    "if ($d.ShowDialog($f) -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $d.SelectedPath }",
+    "$f.Dispose()"
+  ].join('; ');
+  require('child_process').execFile('powershell.exe', ['-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-Command', script],
+    { timeout: 10 * 60e3, windowsHide: true, encoding: 'utf8' }, (err, stdout) => {
+      _selectorAbierto = false;
+      if (err) return res.status(500).json({ error: 'No se pudo abrir el explorador de Windows: ' + err.message.slice(0, 120) });
+      const ruta = String(stdout || '').trim().split(/\r?\n/).pop();
+      res.json(ruta ? { ruta } : { cancelado: true });
+    });
+});
+
+// Explorador dentro del panel: lista solo subcarpetas (nunca contenido de archivos)
+app.get('/api/agente/explorar', (req, res) => {
+  const os = require('os');
+  const pedida = String(req.query.ruta || '').trim();
+  if (!pedida) {
+    const raices = [];
+    const agregar = (nombre, ruta) => { try { if (ruta && fs.statSync(ruta).isDirectory() && !raices.some(r => r.ruta === ruta)) raices.push({ nombre, ruta }); } catch (_) {} };
+    agregar('Carpeta personal', os.homedir());
+    agregar('Escritorio', path.join(os.homedir(), 'Desktop'));
+    agregar('Documentos', path.join(os.homedir(), 'Documents'));
+    agregar('OneDrive', process.env.OneDriveCommercial || process.env.OneDrive);
+    if (process.platform === 'win32') {
+      for (const letra of 'CDEFGHIJKLMNOPQRSTUVWXYZ') agregar(`Unidad ${letra}:`, `${letra}:\\`);
+    } else agregar('Raíz del sistema', '/');
+    return res.json({ ruta: '', padre: null, carpetas: raices, inicio: true });
+  }
+  const ruta = path.resolve(pedida);
+  let entradas;
+  try { entradas = fs.readdirSync(ruta, { withFileTypes: true }); }
+  catch (err) { return res.status(400).json({ error: err.code === 'EACCES' || err.code === 'EPERM' ? 'Sin permiso para abrir esta carpeta' : 'No se encontró la carpeta' }); }
+  const carpetas = entradas
+    .filter(e => e.isDirectory() && !e.name.startsWith('.') && !e.name.startsWith('$') && !/^(System Volume Information|node_modules)$/i.test(e.name))
+    .map(e => ({ nombre: e.name, ruta: path.join(ruta, e.name) }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }))
+    .slice(0, 1000);
+  const archivos = entradas.filter(e => e.isFile()).length;
+  const padre = path.dirname(ruta);
+  res.json({ ruta, padre: padre !== ruta ? padre : '', carpetas, archivos });
 });
 
 app.post('/api/agente/carpetas', async (req, res) => {

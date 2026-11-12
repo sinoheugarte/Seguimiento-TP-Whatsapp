@@ -107,13 +107,24 @@ async function llamarAnthropic(agente, systemPrompt, history, imagenPath = null)
     ];
   }
 
-  const response = await client.messages.create({
-    model: agente.modelo || 'claude-haiku-5-5',
-    max_tokens: 1024,
-    system: systemPrompt,
-    messages
-  });
-  return response.content[0].text;
+  const model = agente.modelo || 'claude-haiku-5-5';
+  const params = { model, max_tokens: 4096, system: systemPrompt, messages };
+  // Esfuerzo bajo: para chat de atención al cliente rinde igual y gasta menos (no existe en Haiku/Sonnet 4.5 ni anteriores)
+  if (!/claude-3|(haiku|sonnet)-4-5/.test(model)) params.output_config = { effort: 'low' };
+
+  // Opus 5.5 y Sonnet 5.5: si el modelo declina por sus filtros de seguridad, la API reintenta con otro modelo
+  const conRespaldo = /^claude-(opus|sonnet)-5-5$/.test(model);
+  const response = conRespaldo
+    ? await client.beta.messages.create({ ...params, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' })
+    : await client.messages.create(params);
+
+  if (response.stop_reason === 'refusal') {
+    console.warn(`[Agente] El modelo declinó responder (${response.stop_details?.category || 'sin categoría'}); no se envía respuesta`);
+    return null;
+  }
+  // Los modelos actuales devuelven primero un bloque de razonamiento: tomar solo el texto
+  const texto = response.content.filter(b => b.type === 'text').map(b => b.text).join('').trim();
+  return texto || null;
 }
 
 async function llamarGemini(agente, systemPrompt, history) {
@@ -230,6 +241,7 @@ async function procesarMensaje(chatId, texto, imagenPath = null) {
     if (proveedor === 'gemini') respuesta = await llamarGemini(agenteConKey, systemPrompt, history);
     else if (proveedor === 'groq') respuesta = await llamarGroq(agenteConKey, systemPrompt, history);
     else respuesta = await llamarAnthropic(agenteConKey, systemPrompt, history, imagenPath);
+    if (!respuesta) { history.pop(); return null; }
     history.push({ role: 'assistant', content: respuesta });
     console.log(`[Agente] Respondido (${proveedor}) → ${chatId}`);
     return respuesta;

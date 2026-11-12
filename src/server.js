@@ -237,6 +237,37 @@ function listarDocumentosKnowledge() {
     });
 }
 
+// Modelos de chat disponibles en Gemini o Groq para una clave (la ingresada o la guardada)
+app.post('/api/agente/modelos', async (req, res) => {
+  const { proveedor } = req.body || {};
+  const apiKey = (req.body?.apiKey || leerConfig().agente?.apiKeys?.[proveedor] || '').trim();
+  if (!['gemini', 'groq'].includes(proveedor)) return res.status(400).json({ error: 'Proveedor no compatible' });
+  if (!apiKey) return res.status(400).json({ error: 'Ingresa primero la API key' });
+  try {
+    let modelos = [];
+    if (proveedor === 'gemini') {
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': apiKey } });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) return res.status(400).json({ error: d.error?.message || `Google respondió ${r.status}` });
+      modelos = (d.models || [])
+        .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+        .map(m => ({ id: String(m.name || '').replace(/^models\//, ''), nombre: m.displayName }))
+        .filter(m => /^gemini-[\d.]+-(flash|pro)/.test(m.id) && !/tts|image|audio|live|embedding|exp|preview|thinking|vision/i.test(m.id));
+    } else {
+      const r = await fetch('https://api.groq.com/openai/v1/models', { headers: { Authorization: `Bearer ${apiKey}` } });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) return res.status(400).json({ error: d.error?.message || `Groq respondió ${r.status}` });
+      modelos = (d.data || [])
+        .filter(m => m.active !== false && !/whisper|tts|guard|playai|orpheus|distil/i.test(m.id))
+        .map(m => ({ id: m.id, nombre: m.id }));
+    }
+    modelos.sort((a, b) => a.id.localeCompare(b.id));
+    res.json({ modelos });
+  } catch (err) {
+    res.status(502).json({ error: `No se pudo contactar al proveedor: ${err.message}` });
+  }
+});
+
 app.get('/api/agente', (req, res) => {
   try {
     const config = leerConfig();

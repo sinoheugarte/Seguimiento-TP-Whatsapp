@@ -138,7 +138,7 @@ async function llamarGemini(agente, systemPrompt, history) {
   const { GoogleGenerativeAI } = require('@google/generative-ai');
   const genAI = new GoogleGenerativeAI(agente.apiKey);
   const model = genAI.getGenerativeModel({
-    model: agente.modelo || 'gemini-2.0-flash',
+    model: agente.modelo || 'gemini-2.5-flash-lite',
     systemInstruction: systemPrompt
   });
   const geminiHistory = history.slice(0, -1).map(m => ({

@@ -1842,6 +1842,7 @@
             <div class="field">
               <label>Modelo</label>
               <select id="agente-modelo"></select>
+              <button type="button" class="link-btn" id="btn-modelos-api" onclick="actualizarModelosProveedor()" style="display:none;margin-top:6px">↻ Ver modelos disponibles</button>
             </div>
           </div>
           <div class="field" style="margin-top:14px">
@@ -3581,7 +3582,7 @@ async function initPanelAgente() {
     document.getElementById('agente-proveedor').value = proveedor;
     document.getElementById('agente-apikey').value = _apiKeysCache[proveedor] || '';
     onProveedorChange();
-    if (data.modelo) document.getElementById('agente-modelo').value = data.modelo;
+    if (data.modelo) _seleccionarModelo(data.modelo);
     // Filtro
     const filtro = data.filtro || 'todos';
     const radioFiltro = document.querySelector(`input[name="agente-filtro"][value="${filtro}"]`);
@@ -3629,14 +3630,14 @@ const MODELOS_PROVEEDOR = {
     { val:'claude-opus-5-5',   label:'Claude Opus 5.5 — más capaz' }
   ],
   gemini: [
-    { val:'gemini-2.0-flash',   label:'Gemini 2.0 Flash — muy rápido' },
-    { val:'gemini-1.5-flash',   label:'Gemini 1.5 Flash — económico' },
-    { val:'gemini-1.5-pro',     label:'Gemini 1.5 Pro — avanzado' }
+    { val:'gemini-2.5-flash-lite', label:'Gemini 2.5 Flash-Lite — muy económico' },
+    { val:'gemini-2.5-flash',      label:'Gemini 2.5 Flash — equilibrado' },
+    { val:'gemini-2.5-pro',        label:'Gemini 2.5 Pro — avanzado (sin capa gratuita)' }
   ],
   groq: [
-    { val:'llama-3.1-8b-instant',     label:'Llama 3.1 8B Instant — ultra rápido' },
-    { val:'llama-3.3-70b-versatile',  label:'Llama 3.3 70B — equilibrado' },
-    { val:'mixtral-8x7b-32768',       label:'Mixtral 8x7B — alta capacidad' }
+    { val:'llama-3.1-8b-instant',    label:'Llama 3.1 8B Instant — ultra rápido · económico' },
+    { val:'llama-3.3-70b-versatile', label:'Llama 3.3 70B — equilibrado' },
+    { val:'openai/gpt-oss-120b',     label:'GPT-OSS 120B — alta capacidad' }
   ]
 };
 const APIKEY_INFO = {
@@ -3658,13 +3659,42 @@ function onProveedorChange() {
   // Actualizar modelos y hints
   const sel = document.getElementById('agente-modelo');
   const modelos = MODELOS_PROVEEDOR[prov] || [];
-  sel.innerHTML = modelos.map(m => `<option value="${m.val}">${m.label}</option>`).join('');
+  sel.innerHTML = modelos.map(m => `<option value="${escHTML(m.val)}">${escHTML(m.label)}</option>`).join('');
+  document.getElementById('btn-modelos-api').style.display = prov === 'anthropic' ? 'none' : '';
   const info = APIKEY_INFO[prov];
   if (info) {
     document.getElementById('agente-apikey-provider-label').textContent = info.label;
     document.getElementById('agente-apikey').placeholder = info.ph;
     document.getElementById('agente-apikey-hint').innerHTML = info.hint;
   }
+}
+
+// Selecciona el modelo guardado aunque ya no esté en la lista (para no perder la elección)
+function _seleccionarModelo(val) {
+  const sel = document.getElementById('agente-modelo');
+  if (![...sel.options].some(o => o.value === val)) sel.insertAdjacentHTML('beforeend', `<option value="${escHTML(val)}">${escHTML(val)} (guardado)</option>`);
+  sel.value = val;
+}
+
+// Pide al proveedor (Gemini / Groq) la lista de modelos disponibles para la clave ingresada
+async function actualizarModelosProveedor() {
+  const prov = document.getElementById('agente-proveedor').value;
+  const btn = document.getElementById('btn-modelos-api');
+  const actual = document.getElementById('agente-modelo').value;
+  btn.disabled = true; btn.textContent = 'Consultando…';
+  try {
+    const r = await fetch('/api/agente/modelos', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ proveedor: prov, apiKey: document.getElementById('agente-apikey').value.trim() }) });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'No se pudo consultar');
+    if (!d.modelos.length) throw new Error('El proveedor no devolvió modelos de chat');
+    const sel = document.getElementById('agente-modelo');
+    const base = new Map((MODELOS_PROVEEDOR[prov] || []).map(m => [m.val, m.label]));
+    sel.innerHTML = d.modelos.map(m => `<option value="${escHTML(m.id)}">${escHTML(base.get(m.id) || m.nombre || m.id)}</option>`).join('');
+    _seleccionarModelo(d.modelos.some(m => m.id === actual) ? actual : d.modelos[0].id);
+    toast(true, `${d.modelos.length} modelos disponibles con tu clave`);
+  } catch (e) { toast(false, e.message); }
+  btn.disabled = false; btn.textContent = '↻ Ver modelos disponibles';
 }
 
 // ── Filtro de chats ──────────────────────────────────────────────────────────

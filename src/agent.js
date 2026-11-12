@@ -108,7 +108,11 @@ async function llamarAnthropic(agente, systemPrompt, history, imagenPath = null)
   }
 
   const model = agente.modelo || 'claude-haiku-5-5';
-  const params = { model, max_tokens: 4096, system: systemPrompt, messages };
+  // Caché de prompts: las instrucciones y la Base de Conocimiento son iguales en cada mensaje,
+  // así que se cachean (lecturas a ~0,1× del precio). TTL de 1 h porque en un chat los mensajes
+  // suelen llegar con pausas de más de 5 min; por debajo del mínimo cacheable la API lo ignora sin costo.
+  const system = [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral', ttl: '1h' } }];
+  const params = { model, max_tokens: 4096, system, messages };
   // Esfuerzo bajo: para chat de atención al cliente rinde igual y gasta menos (no existe en Haiku/Sonnet 4.5 ni anteriores)
   if (!/claude-3|(haiku|sonnet)-4-5/.test(model)) params.output_config = { effort: 'low' };
 
@@ -117,6 +121,9 @@ async function llamarAnthropic(agente, systemPrompt, history, imagenPath = null)
   const response = conRespaldo
     ? await client.beta.messages.create({ ...params, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' })
     : await client.messages.create(params);
+
+  const u = response.usage || {};
+  console.log(`[Agente] Tokens — entrada: ${u.input_tokens ?? 0}, leídos de caché: ${u.cache_read_input_tokens ?? 0}, escritos en caché: ${u.cache_creation_input_tokens ?? 0}, salida: ${u.output_tokens ?? 0}`);
 
   if (response.stop_reason === 'refusal') {
     console.warn(`[Agente] El modelo declinó responder (${response.stop_details?.category || 'sin categoría'}); no se envía respuesta`);

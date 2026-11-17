@@ -241,7 +241,7 @@ function listarDocumentosKnowledge() {
 app.post('/api/agente/modelos', async (req, res) => {
   const { proveedor } = req.body || {};
   const apiKey = (req.body?.apiKey || leerConfig().agente?.apiKeys?.[proveedor] || '').trim();
-  if (!['gemini', 'groq'].includes(proveedor)) return res.status(400).json({ error: 'Proveedor no compatible' });
+  if (!['gemini', 'groq', 'xai'].includes(proveedor)) return res.status(400).json({ error: 'Proveedor no compatible' });
   if (!apiKey) return res.status(400).json({ error: 'Ingresa primero la API key' });
   try {
     let modelos = [];
@@ -253,6 +253,13 @@ app.post('/api/agente/modelos', async (req, res) => {
         .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
         .map(m => ({ id: String(m.name || '').replace(/^models\//, ''), nombre: m.displayName }))
         .filter(m => /^gemini-[\d.]+-(flash|pro)/.test(m.id) && !/tts|image|audio|live|embedding|exp|preview|thinking|vision/i.test(m.id));
+    } else if (proveedor === 'xai') {
+      const r = await fetch('https://api.x.ai/v1/models', { headers: { Authorization: `Bearer ${apiKey}` } });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) return res.status(400).json({ error: d.error?.message || d.error || `xAI respondió ${r.status}` });
+      modelos = (d.data || [])
+        .filter(m => /^grok/i.test(m.id) && !/image|imagine|vision|video|embed|tts|voice/i.test(m.id))
+        .map(m => ({ id: m.id, nombre: m.id }));
     } else {
       const r = await fetch('https://api.groq.com/openai/v1/models', { headers: { Authorization: `Bearer ${apiKey}` } });
       const d = await r.json().catch(() => ({}));

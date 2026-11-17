@@ -265,6 +265,19 @@ async function llamarGroq(agente, systemPrompt, history) {
   return response.choices[0].message.content;
 }
 
+// xAI (Grok): API compatible con OpenAI
+async function llamarXai(agente, systemPrompt, history) {
+  if (!agente.modelo) throw new Error('Elige un modelo de Grok en Agente IA (botón "Ver modelos disponibles")');
+  const r = await fetch('https://api.x.ai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${agente.apiKey}` },
+    body: JSON.stringify({ model: agente.modelo, max_tokens: 4096, messages: [{ role: 'system', content: systemPrompt }, ...history] })
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(`xAI ${r.status}: ${d.error?.message || d.error || d.code || 'error desconocido'}`);
+  return String(d.choices?.[0]?.message?.content || '').trim() || null;
+}
+
 // Devuelve true si el chatId es @lid y los filtros solo tienen contactos en formato
 // @s.whatsapp.net (guardados antes de que WhatsApp introdujera @lid).
 // En ese caso no podemos verificar exactamente, así que lo dejamos pasar.
@@ -351,6 +364,7 @@ async function procesarMensaje(chatId, texto, imagenPath = null) {
     let respuesta;
     if (proveedor === 'gemini') respuesta = await llamarGemini(agenteConKey, systemPrompt, history);
     else if (proveedor === 'groq') respuesta = await llamarGroq(agenteConKey, systemPrompt, history);
+    else if (proveedor === 'xai') respuesta = await llamarXai(agenteConKey, systemPrompt, history);
     else respuesta = await llamarAnthropic(agenteConKey, systemPrompt, history, imagenPath);
     if (!respuesta) { history.pop(); return null; }
     history.push({ role: 'assistant', content: respuesta });

@@ -1841,7 +1841,7 @@
       <div id="agente-tab-config" class="agente-tab active">
         <div class="card">
           <div class="card-title">Configuración del Agente</div>
-          <div class="card-desc">Conecta tu clave de API de Claude (Anthropic) y ajusta el comportamiento del chatbot.</div>
+          <div class="card-desc">Elige el proveedor de IA (Claude, Gemini, Groq o Grok), conecta su clave de API y ajusta el comportamiento del chatbot.</div>
 
           <div class="toggle-row">
             <div class="toggle-desc">
@@ -1861,6 +1861,7 @@
                 <option value="anthropic">🤖 Anthropic (Claude)</option>
                 <option value="gemini">✨ Google (Gemini)</option>
                 <option value="groq">⚡ Groq (Llama · capa gratuita)</option>
+                <option value="xai">𝕏 xAI (Grok)</option>
               </select>
             </div>
             <div class="field">
@@ -3617,6 +3618,7 @@ async function initPanelAgente() {
     _apiKeysCache.anthropic = apiKeys.anthropic ?? data.apiKey ?? '';
     _apiKeysCache.gemini    = apiKeys.gemini    ?? '';
     _apiKeysCache.groq      = apiKeys.groq      ?? '';
+    _apiKeysCache.xai       = apiKeys.xai       ?? '';
     // Proveedor y modelo
     const proveedor = data.proveedor || 'anthropic';
     _prevProveedor = proveedor;
@@ -3661,7 +3663,7 @@ async function guardarConfigAgenteToggle() {
 }
 
 // ── Proveedor y modelos ──────────────────────────────────────────────────────
-let _apiKeysCache = { anthropic: '', gemini: '', groq: '' };
+let _apiKeysCache = { anthropic: '', gemini: '', groq: '', xai: '' };
 let _prevProveedor = 'anthropic';
 
 const MODELOS_PROVEEDOR = {
@@ -3679,12 +3681,15 @@ const MODELOS_PROVEEDOR = {
     { val:'llama-3.1-8b-instant',    label:'Llama 3.1 8B Instant — ultra rápido · económico' },
     { val:'llama-3.3-70b-versatile', label:'Llama 3.3 70B — equilibrado' },
     { val:'openai/gpt-oss-120b',     label:'GPT-OSS 120B — alta capacidad' }
-  ]
+  ],
+  // xAI cambia sus modelos seguido: se cargan desde la cuenta con "Ver modelos disponibles"
+  xai: []
 };
 const APIKEY_INFO = {
   anthropic: { label:'(Anthropic)', ph:'sk-ant-...',  hint:'Obténla en <strong>console.anthropic.com</strong>' },
   gemini:    { label:'(Google AI)', ph:'AIza...',     hint:'Obténla en <strong>aistudio.google.com</strong>' },
-  groq:      { label:'(Groq)',      ph:'gsk_...',     hint:'Obténla en <strong>console.groq.com</strong> · tiene capa gratuita' }
+  groq:      { label:'(Groq)',      ph:'gsk_...',     hint:'Obténla en <strong>console.groq.com</strong> · tiene capa gratuita' },
+  xai:       { label:'(xAI)',       ph:'xai-...',     hint:'Obténla en <strong>console.x.ai</strong> · luego pulsa “Ver modelos disponibles”' }
 };
 
 function onProveedorChange() {
@@ -3700,8 +3705,11 @@ function onProveedorChange() {
   // Actualizar modelos y hints
   const sel = document.getElementById('agente-modelo');
   const modelos = MODELOS_PROVEEDOR[prov] || [];
-  sel.innerHTML = modelos.map(m => `<option value="${escHTML(m.val)}">${escHTML(m.label)}</option>`).join('');
+  sel.innerHTML = modelos.length
+    ? modelos.map(m => `<option value="${escHTML(m.val)}">${escHTML(m.label)}</option>`).join('')
+    : '<option value="">Pega tu API key y pulsa “Ver modelos disponibles”</option>';
   document.getElementById('btn-modelos-api').style.display = prov === 'anthropic' ? 'none' : '';
+  if (!modelos.length && document.getElementById('agente-apikey').value.trim()) actualizarModelosProveedor();
   const info = APIKEY_INFO[prov];
   if (info) {
     document.getElementById('agente-apikey-provider-label').textContent = info.label;
@@ -3817,6 +3825,7 @@ async function guardarConfigAgente() {
   _apiKeysCache[proveedor] = document.getElementById('agente-apikey').value.trim();
   const apiKeys = { ..._apiKeysCache };
   const modelo = document.getElementById('agente-modelo').value;
+  if (!modelo) { toast(false, 'Primero carga y elige un modelo con “Ver modelos disponibles”'); return; }
   const instruccionesExtra = document.getElementById('agente-instrucciones').value;
   const prefijoActivacion = document.getElementById('agente-prefijo').value.trim();
   const filtro = document.querySelector('input[name="agente-filtro"]:checked')?.value || 'todos';

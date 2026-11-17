@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <meta name="theme-color" content="#161717"/>
+  <meta name="robots" content="noindex"/>
+  <title>Ingresar — Seguimiento TP</title>
+  <style>
+    :root { --bg: #0b0c0c; --card: #1d1f1f; --campo: #111212; --borde: #353737; --ink: #fafafa; --ink-2: #a5a5a5; --verde: #21c063; --rojo: #f15c6d; --ease: cubic-bezier(.32,.72,0,1); }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Roboto, Arial, sans-serif;
+      background: radial-gradient(900px 500px at 50% -10%, rgba(33,192,99,.14), transparent 60%), var(--bg);
+      color: var(--ink); display: flex; align-items: center; justify-content: center; padding: 20px; -webkit-font-smoothing: antialiased;
+    }
+    .card { width: 100%; max-width: 380px; padding: 36px 30px 30px; border-radius: 26px; background: var(--card); border: 1px solid rgba(255,255,255,.07); box-shadow: 0 30px 80px rgba(0,0,0,.55); animation: entrar .6s var(--ease); }
+    @keyframes entrar { from { opacity: 0; transform: translateY(14px) scale(.98); } }
+    .logo { width: 84px; height: 84px; margin: 0 auto 18px; border-radius: 50%; position: relative; }
+    .logo::before { content: ''; position: absolute; inset: -4px; border-radius: 50%; background: conic-gradient(#21c063, #53bdeb, #b49cff, #21c063); animation: girar 6s linear infinite; }
+    .logo img { position: relative; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; background: #fff; border: 3px solid var(--card); }
+    @keyframes girar { to { transform: rotate(360deg); } }
+    h1 { text-align: center; font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
+    p.sub { text-align: center; color: var(--ink-2); font-size: 14px; margin: 6px 0 26px; }
+    label { display: block; font-size: 13px; color: var(--ink-2); margin-bottom: 6px; }
+    input { width: 100%; height: 48px; padding: 0 16px; border-radius: 14px; border: 1px solid var(--borde); background: var(--campo); color: var(--ink); font-size: 16px; font-family: inherit; transition: border-color .2s, box-shadow .2s; }
+    input:focus { outline: none; border-color: var(--verde); box-shadow: 0 0 0 3px rgba(33,192,99,.18); }
+    .campo { margin-bottom: 16px; }
+    .pass { position: relative; }
+    .pass input { padding-right: 52px; }
+    .ver { position: absolute; right: 6px; top: 6px; width: 36px; height: 36px; border: 0; border-radius: 10px; background: transparent; color: var(--ink-2); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .ver:hover { color: var(--ink); background: rgba(255,255,255,.06); }
+    button.entrar { width: 100%; height: 50px; margin-top: 6px; border: 0; border-radius: 25px; background: var(--verde); color: #0b1a12; font-size: 16px; font-weight: 700; cursor: pointer; font-family: inherit; box-shadow: 0 8px 24px rgba(33,192,99,.3); transition: transform .2s var(--ease), opacity .2s; }
+    button.entrar:active { transform: scale(.97); }
+    button.entrar:disabled { opacity: .6; cursor: progress; }
+    .error { min-height: 20px; margin-top: 14px; text-align: center; font-size: 14px; color: var(--rojo); }
+    .error.agitar { animation: agitar .4s; }
+    @keyframes agitar { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+    .pie { margin-top: 18px; text-align: center; font-size: 12.5px; color: #737373; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; } }
+  </style>
+</head>
+<body>
+  <form class="card" id="form" autocomplete="on">
+    <div class="logo"><img src="/pt-logo.jpg" alt="Pacífico TP"></div>
+    <h1>Seguimiento TP</h1>
+    <p class="sub" id="sub">Ingresa para abrir el panel de mensajería</p>
+    <div class="campo">
+      <label for="usuario">Usuario</label>
+      <input id="usuario" name="username" autocomplete="username" autocapitalize="off" spellcheck="false" required>
+    </div>
+    <div class="campo">
+      <label for="password">Contraseña</label>
+      <div class="pass">
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+        <button type="button" class="ver" id="ver" aria-label="Mostrar contraseña">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </div>
+    <button class="entrar" id="entrar" type="submit">Ingresar</button>
+    <div class="error" id="error" role="alert"></div>
+    <div class="pie">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5zm-3 8V7a3 3 0 0 1 6 0v3z"/></svg>
+      Acceso privado de Pacífico Transportation
+    </div>
+  </form>
+  <script>
+    const form = document.getElementById('form');
+    const err = document.getElementById('error');
+    const btn = document.getElementById('entrar');
+    document.getElementById('ver').onclick = () => {
+      const p = document.getElementById('password');
+      p.type = p.type === 'password' ? 'text' : 'password';
+    };
+    fetch('/api/auth/estado').then(r => r.json()).then(e => {
+      if (e.autenticado) location.replace('/');
+      else if (!e.configurado) document.getElementById('sub').textContent = 'Primero crea una contraseña desde Ajustes, en la PC donde corre la aplicación.';
+    }).catch(() => {});
+    form.onsubmit = async (ev) => {
+      ev.preventDefault();
+      btn.disabled = true; btn.textContent = 'Ingresando…'; err.textContent = '';
+      try {
+        const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ usuario: document.getElementById('usuario').value, password: document.getElementById('password').value }) });
+        const d = await r.json().catch(() => ({}));
+        if (r.ok) { location.replace('/'); return; }
+        err.textContent = d.error || 'No se pudo ingresar';
+      } catch (_) { err.textContent = 'No se pudo conectar con el servidor'; }
+      err.classList.remove('agitar'); void err.offsetWidth; err.classList.add('agitar');
+      btn.disabled = false; btn.textContent = 'Ingresar';
+      document.getElementById('password').select();
+    };
+    document.getElementById('usuario').focus();
+  </script>
+</body>
+</html>

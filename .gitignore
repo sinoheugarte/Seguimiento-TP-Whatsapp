@@ -7,3 +7,9 @@ media/*.jpeg
 media/*.gif
 media/*.webp
 *.log
+.baileys_auth/
+public/chat-media/
+media/
+config.json
+panel-auth.json
+config.respaldo.json
